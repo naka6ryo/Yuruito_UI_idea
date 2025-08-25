@@ -65,6 +65,20 @@
         .toggle-checkbox:checked + .toggle-label {
             background-color: #3B82F6;
         }
+        /* スタンプアニメーション */
+        .stamp-emoji {
+            opacity: 0;
+            transform-origin: center bottom;
+            pointer-events: none;
+        }
+        .stamp-pop {
+            animation: stamp-pop-animation 0.5s ease-out forwards;
+        }
+        @keyframes stamp-pop-animation {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -79,7 +93,7 @@
                 <div class="inline-block p-4 bg-blue-100 rounded-full mb-4">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 12l-4 -4"/><path d="M16 12l-4 4"/></svg>
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800">Ito</h1>
+                <h1 class="text-3xl font-bold text-gray-800">ゆるいと</h1>
                 <p class="text-gray-500 mt-2">ゆるいつながりSNS</p>
             </div>
 
@@ -218,37 +232,45 @@
                                 <line x1="150" y1="150" x2="220" y2="100" stroke="#22C55E" stroke-width="3" stroke-linecap="round" class="connection-line" style="animation-delay: 1.6s;"/>
 
                                 <!-- アイコンと名前 -->
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Riku', 'すれ違ったかも')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Riku" onclick="showProfileModal('Riku', 'すれ違ったかも')">
                                     <circle cx="280" cy="280" r="15" fill="#F9A8D4"/>
                                     <text x="280" y="305" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Riku</text>
+                                    <text class="stamp-emoji" x="280" y="270" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Kaito', '顔見知り')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Kaito" onclick="showProfileModal('Kaito', '顔見知り')">
                                     <circle cx="50" cy="50" r="15" fill="#FDBA74"/>
                                     <text x="50" y="75" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Kaito</text>
+                                    <text class="stamp-emoji" x="50" y="40" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Mei', 'すれ違ったかも')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Mei" onclick="showProfileModal('Mei', 'すれ違ったかも')">
                                     <circle cx="150" cy="20" r="15" fill="#F9A8D4"/>
                                     <text x="150" y="45" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Mei</text>
+                                    <text class="stamp-emoji" x="150" y="10" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Haru', 'ともだち')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Haru" onclick="showProfileModal('Haru', 'ともだち')">
                                     <circle cx="250" cy="200" r="15" fill="#86EFAC"/>
                                     <text x="250" y="225" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Haru</text>
+                                    <text class="stamp-emoji" x="250" y="190" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Saki', 'すれ違ったかも')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Saki" onclick="showProfileModal('Saki', 'すれ違ったかも')">
                                     <circle cx="70" cy="210" r="15" fill="#F9A8D4"/>
                                     <text x="70" y="235" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Saki</text>
+                                    <text class="stamp-emoji" x="70" y="200" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Aoi', '仲良し')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Aoi" onclick="showProfileModal('Aoi', '仲良し')">
                                     <circle cx="80" cy="80" r="15" fill="#A78BFA"/>
                                     <text x="80" y="105" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Aoi</text>
+                                    <text class="stamp-emoji" x="80" y="70" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Yuki', '顔見知り')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Yuki" onclick="showProfileModal('Yuki', '顔見知り')">
                                     <circle cx="200" cy="230" r="15" fill="#FDBA74"/>
                                     <text x="200" y="255" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Yuki</text>
+                                    <text class="stamp-emoji" x="200" y="220" text-anchor="middle" font-size="20"></text>
                                 </g>
-                                <g class="user-node-group user-node cursor-pointer" onclick="showProfileModal('Ren', 'ともだち')">
+                                <g class="user-node-group user-node cursor-pointer" data-name="Ren" onclick="showProfileModal('Ren', 'ともだち')">
                                     <circle cx="220" cy="100" r="15" fill="#86EFAC"/>
                                     <text x="220" y="125" text-anchor="middle" font-size="12" font-weight="600" fill="#4B5563">Ren</text>
+                                    <text class="stamp-emoji" x="220" y="90" text-anchor="middle" font-size="20"></text>
                                 </g>
 
                                 <!-- ユーザー自身 (最後に記述して最前面に表示) -->
@@ -264,7 +286,7 @@
                 <!-- チャット一覧ビュー -->
                 <div id="chat-view" class="hidden">
                     <div class="divide-y divide-gray-200">
-                        <div onclick="openChatRoom('Aoi')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
+                        <div onclick="openChatRoom('Aoi', '仲良し')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
                             <img src="https://placehold.co/48x48/A78BFA/FFFFFF?text=A" class="w-12 h-12 rounded-full" alt="Aoi">
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-center">
@@ -277,7 +299,7 @@
                                 <p class="text-sm text-gray-500 truncate">（スタンプ）</p>
                             </div>
                         </div>
-                        <div onclick="openChatRoom('Ren')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
+                        <div onclick="openChatRoom('Ren', 'ともだち')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
                             <img src="https://placehold.co/48x48/86EFAC/FFFFFF?text=R" class="w-12 h-12 rounded-full" alt="Ren">
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-center">
@@ -290,7 +312,7 @@
                                 <p class="text-sm text-gray-500 truncate">またね！</p>
                             </div>
                         </div>
-                         <div onclick="openChatRoom('Yuki')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
+                         <div onclick="openChatRoom('Yuki', '顔見知り')" class="p-4 flex items-center space-x-4 hover:bg-gray-100 cursor-pointer">
                             <img src="https://placehold.co/48x48/FDBA74/FFFFFF?text=Y" class="w-12 h-12 rounded-full" alt="Yuki">
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-center">
@@ -300,7 +322,7 @@
                                     </div>
                                     <span class="text-xs text-gray-400">5日前</span>
                                 </div>
-                                <p class="text-sm text-gray-500 truncate">よろしく！</p>
+                                <p class="text-sm text-gray-500 truncate">（スタンプ）</p>
                             </div>
                         </div>
                     </div>
@@ -391,7 +413,7 @@
                             <span onclick="sendSticker('👋')" class="text-4xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">👋</span>
                         </div>
                         <div class="p-2 bg-white border-t border-gray-200">
-                            <div class="flex items-center space-x-2">
+                            <div id="chat-input-full" class="flex items-center space-x-2">
                                 <button onclick="toggleStickerPanel()" class="p-2 text-gray-500 hover:text-blue-500">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                                 </button>
@@ -401,6 +423,12 @@
                                 </div>
                                 <button id="send-btn" class="p-2 text-blue-500 hover:bg-blue-100 rounded-full">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                                </button>
+                            </div>
+                             <div id="chat-input-sticker-only" class="hidden flex items-center justify-center space-x-2 p-2">
+                                <span class="text-sm text-gray-500">スタンプで話そう！</span>
+                                <button onclick="toggleStickerPanel()" class="p-2 text-gray-500 hover:text-blue-500">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                                 </button>
                             </div>
                         </div>
@@ -433,22 +461,29 @@
                 <h3 id="modal-name" class="text-xl font-bold text-gray-800">Aoi</h3>
                 <p id="modal-status" class="text-gray-500 mb-4">仲良し</p>
                 
-                <div class="flex justify-center space-x-4 mb-4">
-                    <button class="p-3 bg-gray-100 rounded-full text-gray-600 hover:bg-red-100 hover:text-red-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-                    </button>
-                     <button class="p-3 bg-gray-100 rounded-full text-gray-600 hover:bg-yellow-100 hover:text-yellow-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12h-8l-2 4H6l2-4H4l2-4h4l-2-4h8l2 4h-2l2 4Z"/></svg>
-                    </button>
-                </div>
-
-                <!-- メッセージ送信フォーム -->
-                <div class="mb-4">
-                    <div class="relative">
-                        <input type="text" id="modal-message-input" maxlength="30" placeholder="ひとこと送る (30文字まで)" class="w-full bg-gray-100 border border-gray-200 rounded-lg py-2 pl-3 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors">
-                        <button onclick="sendMessage()" class="absolute inset-y-0 right-0 px-4 text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors">送信</button>
+                <div class="relative mb-4">
+                     <div id="modal-sticker-panel" class="hidden absolute bottom-full left-0 right-0 bg-gray-200 p-2 rounded-t-xl grid grid-cols-4 gap-2 mb-2">
+                        <span onclick="sendModalSticker('😊')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">😊</span>
+                        <span onclick="sendModalSticker('👍')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">👍</span>
+                        <span onclick="sendModalSticker('😂')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">😂</span>
+                        <span onclick="sendModalSticker('🎉')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">🎉</span>
                     </div>
-                    <p id="send-feedback" class="text-xs text-green-500 h-4 mt-1 text-center"></p>
+                    <div id="modal-chat-input-full" class="flex items-center space-x-2">
+                        <button onclick="toggleModalStickerPanel()" class="p-2 text-gray-500 hover:text-blue-500 flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                        </button>
+                        <input type="text" id="modal-chat-input" maxlength="30" placeholder="ひとこと送る..." class="w-full bg-gray-100 rounded-full py-2 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <button id="modal-send-btn" class="p-2 text-blue-500 hover:bg-blue-100 rounded-full flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                        </button>
+                    </div>
+                     <div id="modal-chat-input-sticker-only" class="hidden flex items-center justify-center space-x-2 p-2">
+                        <span class="text-sm text-gray-500">スタンプで話そう！</span>
+                        <button onclick="toggleModalStickerPanel()" class="p-2 text-gray-500 hover:text-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+                        </button>
+                    </div>
+                     <p id="modal-send-feedback" class="text-xs text-green-500 h-4 mt-1 text-center"></p>
                 </div>
 
                 <button class="w-full bg-gray-800 text-white py-2.5 rounded-lg font-semibold hover:bg-gray-900 transition-colors">
@@ -613,8 +648,13 @@
         const modalAvatar = document.getElementById('modal-avatar');
         const modalName = document.getElementById('modal-name');
         const modalStatus = document.getElementById('modal-status');
-        const messageInput = document.getElementById('modal-message-input');
-        const sendFeedback = document.getElementById('send-feedback');
+        const modalChatInputFull = document.getElementById('modal-chat-input-full');
+        const modalChatInputStickerOnly = document.getElementById('modal-chat-input-sticker-only');
+        const modalMessageInput = document.getElementById('modal-chat-input');
+        const modalSendFeedback = document.getElementById('modal-send-feedback');
+        const modalSendBtn = document.getElementById('modal-send-btn');
+        const modalStickerPanel = document.getElementById('modal-sticker-panel');
+        const modalMessageContainer = document.querySelector('#profile-modal .relative.mb-4');
         
         const avatarColors = {
             'Aoi': 'A78BFA',
@@ -634,6 +674,21 @@
             const color = avatarColors[name] || 'cccccc';
             modalAvatar.src = `https://placehold.co/80x80/${color}/FFFFFF?text=${name.charAt(0)}`;
             
+            // ステータスに応じて入力欄を切り替え
+            if (status === 'すれ違ったかも') {
+                modalMessageContainer.classList.add('hidden');
+            } else {
+                modalMessageContainer.classList.remove('hidden');
+                if (status === '顔見知り') {
+                    modalChatInputFull.classList.add('hidden');
+                    modalChatInputStickerOnly.classList.remove('hidden');
+                } else {
+                    modalChatInputFull.classList.remove('hidden');
+                    modalChatInputStickerOnly.classList.add('hidden');
+                }
+            }
+
+
             profileModal.classList.remove('hidden');
             profileModal.classList.add('flex');
             setTimeout(() => {
@@ -646,21 +701,50 @@
             setTimeout(() => {
                 profileModal.classList.add('hidden');
                 profileModal.classList.remove('flex');
-                messageInput.value = '';
-                sendFeedback.textContent = '';
+                modalMessageInput.value = '';
+                modalSendFeedback.textContent = '';
+                modalStickerPanel.classList.add('hidden');
             }, 200);
         }
 
-        // メッセージ送信処理
-        function sendMessage() {
-            if (messageInput.value.trim() === '') return;
-            console.log(`Message sent: ${messageInput.value}`);
-            sendFeedback.textContent = '送信しました！';
+        // モーダルでのメッセージ送信処理
+        function sendModalMessage() {
+            const text = modalMessageInput.value.trim();
+            if (text === '') return;
+            console.log(`Modal Message to ${modalName.textContent}: ${text}`);
+            modalSendFeedback.textContent = '送信しました！';
             setTimeout(() => {
-                messageInput.value = '';
-                sendFeedback.textContent = '';
+                modalMessageInput.value = '';
+                modalSendFeedback.textContent = '';
             }, 2000);
         }
+        modalSendBtn.addEventListener('click', sendModalMessage);
+        
+        function toggleModalStickerPanel() {
+            modalStickerPanel.classList.toggle('hidden');
+        }
+
+        function sendModalSticker(sticker) {
+            const targetName = modalName.textContent;
+            console.log(`Modal Sticker to ${targetName}: ${sticker}`);
+            modalSendFeedback.textContent = '送信しました！';
+            
+            const userNode = document.querySelector(`.user-node-group[data-name="${targetName}"] .stamp-emoji`);
+            if(userNode) {
+                userNode.textContent = sticker;
+                userNode.classList.add('stamp-pop');
+                setTimeout(() => {
+                    userNode.classList.remove('stamp-pop');
+                    userNode.textContent = '';
+                }, 2000);
+            }
+
+            setTimeout(() => {
+                modalSendFeedback.textContent = '';
+            }, 2000);
+            toggleModalStickerPanel();
+        }
+
 
         // チャットルームの処理
         const chatMessages = document.getElementById('chat-messages');
@@ -668,19 +752,35 @@
         const charCounter = document.getElementById('char-counter');
         const sendBtn = document.getElementById('send-btn');
         const stickerPanel = document.getElementById('sticker-panel');
+        const chatInputFull = document.getElementById('chat-input-full');
+        const chatInputStickerOnly = document.getElementById('chat-input-sticker-only');
 
 
-        function openChatRoom(userName) {
+        function openChatRoom(userName, status) {
             viewBeforeChatRoom = currentView;
             switchView('chatRoom');
             headerTitle.textContent = userName;
             
+            // ステータスに応じて入力欄を切り替え
+            if (status === '顔見知り') {
+                chatInputFull.classList.add('hidden');
+                chatInputStickerOnly.classList.remove('hidden');
+            } else {
+                chatInputFull.classList.remove('hidden');
+                chatInputStickerOnly.classList.add('hidden');
+            }
+            
             // Clear previous messages and add mock messages
             chatMessages.innerHTML = '';
-            addMessage('こんにちは！', 'received');
-            addMessage('元気？', 'sent');
-            addMessage('元気だよー！', 'received');
-            addMessage('😊', 'sent', true);
+            if (status === '顔見知り') {
+                addMessage('👋', 'received', true);
+                addMessage('😊', 'sent', true);
+            } else {
+                addMessage('こんにちは！', 'received');
+                addMessage('元気？', 'sent');
+                addMessage('元気だよー！', 'received');
+                addMessage('😊', 'sent', true);
+            }
         }
 
         function addMessage(text, type, isSticker = false) {
