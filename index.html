@@ -103,7 +103,7 @@
             </div>
 
             <button onclick="login()" class="w-full mt-6 bg-blue-500 text-white py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors">ログイン</button>
-            <button onclick="login()" class="w-full mt-3 bg-white text-gray-700 py-3 rounded-lg font-semibold border border-gray-300 hover:bg-gray-100 transition-colors">新規登録</button>
+            <button onclick="showRegistration()" class="w-full mt-3 bg-white text-gray-700 py-3 rounded-lg font-semibold border border-gray-300 hover:bg-gray-100 transition-colors">新規登録</button>
 
             <div class="mt-8 text-center">
                 <p class="text-sm text-gray-400 mb-4">または</p>
@@ -117,6 +117,46 @@
                 </div>
             </div>
         </div>
+        
+        <!-- ===== 新規登録画面 ===== -->
+        <div id="registration-screen" class="hidden flex-col h-full justify-center p-8 bg-gray-50">
+            <h2 class="text-2xl font-bold text-gray-800 mb-8 text-center">新規登録</h2>
+            <div class="space-y-4">
+                <input type="text" placeholder="ユーザー名" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <input type="text" placeholder="ID" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <input type="password" placeholder="パスワード" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            <button onclick="showIconSelection()" class="w-full mt-8 bg-blue-500 text-white py-3 rounded-lg font-semibold hover:bg-blue-600 transition-colors">次へ</button>
+            <button onclick="showLogin()" class="w-full mt-3 text-sm text-gray-500 hover:text-gray-700">ログイン画面へ</button>
+        </div>
+        
+        <!-- ===== アイコン選択画面 ===== -->
+        <div id="icon-selection-screen" class="hidden flex-col h-full p-8 bg-gray-50">
+            <h2 class="text-2xl font-bold text-gray-800 mb-8 text-center">アイコンを選択</h2>
+            <div id="icon-grid" class="grid grid-cols-4 gap-4 flex-grow content-center">
+                <!-- Icons will be injected here -->
+            </div>
+             <div class="flex justify-between items-center">
+                <button onclick="showRegistration()" class="text-gray-500 hover:text-gray-800">&lt; 戻る</button>
+                <button id="icon-next-btn" onclick="showQuestionnaire()" class="bg-blue-500 text-white py-2 px-6 rounded-lg font-semibold hover:bg-blue-600 disabled:bg-gray-300" disabled>次へ</button>
+            </div>
+        </div>
+
+        <!-- ===== アンケート画面 ===== -->
+        <div id="questionnaire-screen" class="hidden flex-col h-full p-8 bg-gray-50">
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-8">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 20%"></div>
+            </div>
+            <div id="question-container" class="flex-grow flex flex-col justify-center text-center">
+                <!-- Questions will be injected here -->
+            </div>
+            <div id="question-nav" class="flex justify-between items-center">
+                <button id="prev-btn" onclick="prevQuestion()" class="text-gray-500 hover:text-gray-800">&lt; 戻る</button>
+                <button id="skip-btn" onclick="nextQuestion()" class="text-sm text-gray-500 hover:text-gray-700">スキップ</button>
+                <button id="next-btn" onclick="nextQuestion()" class="bg-blue-500 text-white py-2 px-6 rounded-lg font-semibold hover:bg-blue-600">次へ</button>
+            </div>
+        </div>
+
 
         <!-- ===== メインアプリ画面 ===== -->
         <div id="main-app" class="hidden flex-1 flex flex-col overflow-hidden">
@@ -333,7 +373,8 @@
                      <div class="text-center">
                         <img src="https://placehold.co/96x96/3B82F6/FFFFFF?text=U" class="w-24 h-24 rounded-full mx-auto mb-4" alt="User Avatar">
                         <h2 class="text-2xl font-bold text-gray-800">あなた</h2>
-                        <p class="text-gray-500">ID: your_user_id</p>
+                        <p class="text-gray-500 mb-2">ID: your_user_id</p>
+                        <p class="text-lg text-gray-700 font-medium">"のんびり過ごしてます。"</p>
                     </div>
                     
                     <div class="mt-8 space-y-4">
@@ -355,6 +396,36 @@
                     <div class="mt-8">
                          <button onclick="switchView('settings')" class="w-full text-left text-gray-700 p-3 hover:bg-gray-200 rounded-lg transition-colors">設定</button>
                          <button class="w-full text-left text-red-500 p-3 hover:bg-red-50 rounded-lg transition-colors">退会する</button>
+                    </div>
+                </div>
+                
+                <!-- 他ユーザーのプロフィールビュー -->
+                <div id="other-profile-view" class="hidden p-6">
+                     <div class="text-center">
+                        <img id="other-profile-avatar" src="https://placehold.co/96x96/A78BFA/FFFFFF?text=A" class="w-24 h-24 rounded-full mx-auto mb-4" alt="User Avatar">
+                        <h2 id="other-profile-name" class="text-2xl font-bold text-gray-800">Aoi</h2>
+                        <p id="other-profile-status" class="text-gray-500 mb-2">仲良し</p>
+                        <p id="other-profile-bio" class="text-lg text-gray-700 font-medium">"カフェ巡りが好きです☕"</p>
+                    </div>
+                    
+                    <div class="mt-8 space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-700 border-b pb-2">プロフィール情報</h3>
+                        <div class="bg-white p-4 rounded-lg">
+                            <p class="text-sm text-gray-500">つい頼んでしまう、好きな食べ物は？</p>
+                            <p class="text-gray-800 font-medium">チーズケーキ</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg">
+                            <p class="text-sm text-gray-500">最近、夢中になっている作品は？</p>
+                            <p class="text-gray-800 font-medium">海外ドラマの「フレンズ」</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg">
+                            <p class="text-sm text-gray-500">よく聴く、好きな音楽は？</p>
+                            <p class="text-gray-800 font-medium">K-POP</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg">
+                            <p class="text-sm text-gray-500">もし明日から寝なくても平気になったら、その時間をどう使う？</p>
+                            <p class="text-gray-800 font-medium">ひたすら映画を観る</p>
+                        </div>
                     </div>
                 </div>
 
@@ -461,7 +532,7 @@
                 <h3 id="modal-name" class="text-xl font-bold text-gray-800">Aoi</h3>
                 <p id="modal-status" class="text-gray-500 mb-4">仲良し</p>
                 
-                <div class="relative mb-4">
+                <div id="modal-message-container" class="relative mb-4">
                      <div id="modal-sticker-panel" class="hidden absolute bottom-full left-0 right-0 bg-gray-200 p-2 rounded-t-xl grid grid-cols-4 gap-2 mb-2">
                         <span onclick="sendModalSticker('😊')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">😊</span>
                         <span onclick="sendModalSticker('👍')" class="text-3xl cursor-pointer text-center hover:bg-gray-300 rounded-lg">👍</span>
@@ -486,8 +557,9 @@
                      <p id="modal-send-feedback" class="text-xs text-green-500 h-4 mt-1 text-center"></p>
                 </div>
 
-                <button class="w-full bg-gray-800 text-white py-2.5 rounded-lg font-semibold hover:bg-gray-900 transition-colors">
-                    もう一歩... (プロフィールを見る)
+                <button id="modal-view-profile-btn" class="w-full bg-gray-800 text-white p-3 rounded-lg font-semibold hover:bg-gray-900 transition-colors text-center">
+                    <span id="modal-profile-btn-bio" class="block text-sm truncate"></span>
+                    <span class="block text-xs opacity-75">(プロフィールを見る)</span>
                 </button>
                 <button onclick="hideProfileModal()" class="w-full mt-2 text-gray-500 py-2.5 rounded-lg hover:bg-gray-100 transition-colors">
                     閉じる
@@ -498,6 +570,9 @@
 
     <script>
         const loginScreen = document.getElementById('login-screen');
+        const registrationScreen = document.getElementById('registration-screen');
+        const questionnaireScreen = document.getElementById('questionnaire-screen');
+        const iconSelectionScreen = document.getElementById('icon-selection-screen');
         const mainApp = document.getElementById('main-app');
         
         const views = {
@@ -506,7 +581,8 @@
             chat: document.getElementById('chat-view'),
             profile: document.getElementById('profile-view'),
             settings: document.getElementById('settings-view'),
-            chatRoom: document.getElementById('chat-room-view')
+            chatRoom: document.getElementById('chat-room-view'),
+            otherProfile: document.getElementById('other-profile-view')
         };
         
         const navButtons = {
@@ -531,26 +607,67 @@
             chat: 'チャット',
             profile: 'プロフィール',
             settings: '設定',
-            chatRoom: '' // Chat room title is set dynamically
+            chatRoom: '', // Chat room title is set dynamically
+            otherProfile: '' // Set dynamically
         };
         
         let currentView = 'map';
         let viewBeforeSettings = 'map';
         let viewBeforeChatRoom = 'chat';
+        let viewBeforeOtherProfile = 'map';
 
         // ログイン処理
         function login() {
             loginScreen.classList.add('hidden');
+            registrationScreen.classList.add('hidden');
+            questionnaireScreen.classList.add('hidden');
+            iconSelectionScreen.classList.add('hidden');
             mainApp.classList.remove('hidden');
             mainApp.classList.add('flex');
             switchView('map'); // ログイン後はマップ画面を最初に表示
         }
+        
+        function showLogin() {
+            registrationScreen.classList.add('hidden');
+            questionnaireScreen.classList.add('hidden');
+            iconSelectionScreen.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            loginScreen.classList.add('flex');
+        }
+
+        function showRegistration() {
+            loginScreen.classList.add('hidden');
+            questionnaireScreen.classList.add('hidden');
+            iconSelectionScreen.classList.add('hidden');
+            registrationScreen.classList.remove('hidden');
+            registrationScreen.classList.add('flex');
+        }
+        
+        function showQuestionnaire() {
+            registrationScreen.classList.add('hidden');
+            iconSelectionScreen.classList.add('hidden');
+            questionnaireScreen.classList.remove('hidden');
+            questionnaireScreen.classList.add('flex');
+            renderQuestion(currentQuestionIndex);
+        }
+        
+        function showIconSelection() {
+            registrationScreen.classList.add('hidden');
+            iconSelectionScreen.classList.remove('hidden');
+            iconSelectionScreen.classList.add('flex');
+        }
+
 
         // ビューの切り替え処理
         function switchView(viewName) {
             if (viewName === 'settings') {
                 viewBeforeSettings = currentView;
+            } else if (viewName === 'otherProfile') {
+                viewBeforeOtherProfile = currentView;
+            } else if (viewName !== 'chatRoom') {
+                 viewBeforeChatRoom = currentView;
             }
+
 
             // 全てのビューを非表示
             for (const key in views) {
@@ -574,7 +691,11 @@
             }
             
             // ヘッダーのタイトルを更新
-            headerTitle.textContent = titles[viewName];
+            if(viewName !== 'otherProfile' && viewName !== 'chatRoom'){
+                headerTitle.textContent = titles[viewName];
+            }
+            headerTitle.classList.remove('cursor-pointer');
+            headerTitle.onclick = null;
             
             // 他のビューから移動してきたときに検索モードを解除
             if (!headerSearch.classList.contains('hidden')) {
@@ -583,9 +704,10 @@
 
             // ヘッダーとフッターの表示切り替え
             const isChatRoom = viewName === 'chatRoom';
-            backButton.classList.toggle('hidden', viewName !== 'settings' && !isChatRoom);
-            headerIcons.classList.toggle('hidden', viewName === 'settings' || viewName === 'profile' || isChatRoom);
-            mainFooter.classList.toggle('hidden', isChatRoom);
+            const isSubPage = viewName === 'settings' || isChatRoom || viewName === 'otherProfile';
+            backButton.classList.toggle('hidden', !isSubPage);
+            headerIcons.classList.toggle('hidden', isSubPage || viewName === 'profile');
+            mainFooter.classList.toggle('hidden', isChatRoom || viewName === 'otherProfile');
 
 
             // マップビューの時だけヘッダーを透過させる
@@ -613,6 +735,8 @@
                 switchView(viewBeforeSettings);
             } else if (currentView === 'chatRoom') {
                 switchView(viewBeforeChatRoom);
+            } else if (currentView === 'otherProfile') {
+                switchView(viewBeforeOtherProfile);
             }
         }
 
@@ -656,24 +780,26 @@
         const modalStickerPanel = document.getElementById('modal-sticker-panel');
         const modalMessageContainer = document.querySelector('#profile-modal .relative.mb-4');
         
-        const avatarColors = {
-            'Aoi': 'A78BFA',
-            'Ren': '86EFAC',
-            'Yuki': 'FDBA74',
-            'Saki': 'F9A8D4',
-            'Haru': '86EFAC',
-            'Kaito': 'FDBA74',
-            'Mei': 'F9A8D4',
-            'Riku': 'F9A8D4',
-            'Mio': 'FBBF24'
+        const usersData = {
+            'Aoi': { color: 'A78BFA', bio: 'カフェ巡りが好きです☕' },
+            'Ren': { color: '86EFAC', bio: '週末はよく散歩してます。' },
+            'Yuki': { color: 'FDBA74', bio: 'おすすめの音楽教えてください！' },
+            'Saki': { color: 'F9A8D4', bio: '人見知りです、よろしくお願いします。' },
+            'Haru': { color: '86EFAC', bio: 'ゲームが好きです🎮' },
+            'Kaito': { color: 'FDBA74', bio: '美味しいもの大好き！' },
+            'Mei': { color: 'F9A8D4', bio: '猫派です🐈' },
+            'Riku': { color: 'F9A8D4', bio: '...' },
+            'Mio': { color: 'FBBF24', bio: 'はじめまして！' }
         };
 
         function showProfileModal(name, status) {
             modalName.textContent = name;
             modalStatus.textContent = status;
-            const color = avatarColors[name] || 'cccccc';
-            modalAvatar.src = `https://placehold.co/80x80/${color}/FFFFFF?text=${name.charAt(0)}`;
+            const userData = usersData[name] || { color: 'cccccc', bio: '...' };
+            modalAvatar.src = `https://placehold.co/80x80/${userData.color}/FFFFFF?text=${name.charAt(0)}`;
             
+            document.getElementById('modal-profile-btn-bio').textContent = `"${userData.bio}"`;
+
             // ステータスに応じて入力欄を切り替え
             if (status === 'すれ違ったかも') {
                 modalMessageContainer.classList.add('hidden');
@@ -687,6 +813,8 @@
                     modalChatInputStickerOnly.classList.add('hidden');
                 }
             }
+            
+            document.getElementById('modal-view-profile-btn').onclick = () => showOtherUserProfile(name, status);
 
 
             profileModal.classList.remove('hidden');
@@ -760,6 +888,8 @@
             viewBeforeChatRoom = currentView;
             switchView('chatRoom');
             headerTitle.textContent = userName;
+            headerTitle.classList.add('cursor-pointer');
+            headerTitle.onclick = () => showOtherUserProfile(userName, status);
             
             // ステータスに応じて入力欄を切り替え
             if (status === '顔見知り') {
@@ -953,6 +1083,110 @@
         }
         
         setupMapInteraction(document.getElementById('connection-map'));
+        
+        // Questionnaire Logic
+        const questions = [
+            {
+                title: "あなたを表す一言は？",
+                input: `<input type="text" placeholder="例：のんびり" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">`
+            },
+            {
+                title: "つい頼んでしまう、好きな食べ物は？",
+                input: `<input type="text" placeholder="例：ラーメン" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">`
+            },
+            {
+                title: "最近、夢中になっている作品は？ (映画、本、アニメなど)",
+                input: `<input type="text" placeholder="例：〇〇という映画" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">`
+            },
+            {
+                title: "お寿司屋さんで、これだけは外せないネタは？",
+                input: `<input type="text" placeholder="例：サーモン" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">`
+            },
+            {
+                title: "よく聴く、好きな音楽のジャンルやアーティストは？",
+                input: `<input type="text" placeholder="例：インディーズロック" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">`
+            },
+            {
+                title: "もし明日から寝なくても平気になったら、その時間をどう使う？",
+                input: `<textarea placeholder="例：見たかった映画を全部見る" class="w-full text-center px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 h-24"></textarea>`
+            }
+        ];
+        let currentQuestionIndex = 0;
+        const questionContainer = document.getElementById('question-container');
+        const progressBar = document.getElementById('progress-bar');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+
+        function renderQuestion(index) {
+            const question = questions[index];
+            questionContainer.innerHTML = `
+                <h3 class="text-xl font-semibold text-gray-800 mb-6">${question.title}</h3>
+                ${question.input}
+            `;
+            const progress = ((index + 1) / questions.length) * 100;
+            progressBar.style.width = `${progress}%`;
+            
+            prevBtn.classList.toggle('hidden', index === 0);
+            if (index === questions.length - 1) {
+                nextBtn.textContent = '完了';
+            } else {
+                nextBtn.textContent = '次へ';
+            }
+        }
+
+        function nextQuestion() {
+            if (currentQuestionIndex < questions.length - 1) {
+                currentQuestionIndex++;
+                renderQuestion(currentQuestionIndex);
+            } else {
+                // Last question, complete registration
+                login();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                renderQuestion(currentQuestionIndex);
+            } else {
+                showIconSelection();
+            }
+        }
+        
+        function showOtherUserProfile(name, status) {
+            const userData = usersData[name] || { color: 'cccccc', bio: '...' };
+            
+            document.getElementById('other-profile-avatar').src = `https://placehold.co/96x96/${userData.color}/FFFFFF?text=${name.charAt(0)}`;
+            document.getElementById('other-profile-name').textContent = name;
+            document.getElementById('other-profile-status').textContent = status;
+            document.getElementById('other-profile-bio').textContent = `"${userData.bio}"`;
+            
+            hideProfileModal();
+            switchView('otherProfile');
+        }
+        
+        // Icon Selection Logic
+        const iconGrid = document.getElementById('icon-grid');
+        const iconNextBtn = document.getElementById('icon-next-btn');
+        const icons = ['😊', '😎', '🐶', '🐱', '🤖', '👻', '🍕', '⚽️'];
+        let selectedIcon = null;
+
+        icons.forEach(icon => {
+            const button = document.createElement('button');
+            button.className = 'p-4 text-4xl bg-gray-200 rounded-full hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400';
+            button.textContent = icon;
+            button.onclick = () => {
+                selectedIcon = icon;
+                // Remove selection from others
+                Array.from(iconGrid.children).forEach(child => {
+                    child.classList.remove('ring-2', 'ring-blue-500');
+                });
+                // Add selection to current
+                button.classList.add('ring-2', 'ring-blue-500');
+                iconNextBtn.disabled = false;
+            };
+            iconGrid.appendChild(button);
+        });
 
     </script>
 
