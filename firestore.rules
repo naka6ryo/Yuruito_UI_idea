@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 緊急テスト用: 全て許可（本番では使用禁止）
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

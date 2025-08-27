@@ -22,11 +22,28 @@ class LocationService {
     if (_timer?.isActive ?? false) {
       return;
     }
-    // 30秒に1回、位置情報の取得と送信プロセスを開始する
-    _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      _sendAverageLocation(); // メソッド名を変更
-    });
-    debugPrint("位置情報の自動更新を開始しました。");
+    
+    // Firebase認証の完了を待ってから位置情報サービスを開始
+    _waitForAuthAndStart();
+  }
+
+  void _waitForAuthAndStart() async {
+    // 認証状態を監視して認証完了まで待機
+    await for (final user in _auth.authStateChanges()) {
+      if (user != null) {
+        debugPrint("Firebase認証完了: ${user.uid}");
+        
+        // 30秒に1回、位置情報の取得と送信プロセスを開始する
+        _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
+          _sendAverageLocation();
+        });
+        debugPrint("位置情報の自動更新を開始しました。");
+        
+        // 最初の実行も行う
+        _sendAverageLocation();
+        break; // 認証完了したらループを抜ける
+      }
+    }
   }
 
   void stopLocationUpdates() {
@@ -108,18 +125,32 @@ class LocationService {
       } catch (_) {}
 
       // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
-
       if (uid != null) {
         try {
+          debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
+          debugPrint('保存先パス: locations/$uid');
+          debugPrint('保存データ: location=${GeoPoint(averageLat, averageLng)}, updatedAt=${DateTime.now().toIso8601String()}');
+          
           await _firestore.collection('locations').doc(uid).set({
             'location': GeoPoint(averageLat, averageLng),
             'updatedAt': DateTime.now().toIso8601String(),
           }, SetOptions(merge: true));
+          
+          debugPrint('✅ Firestore保存成功: locations/$uid');
         } catch (e) {
-          debugPrint('Failed to write averaged location to Firestore: $e');
+          debugPrint('❌ Failed to write averaged location to Firestore: $e');
+          debugPrint('認証状態: ${_auth.currentUser != null ? "ログイン済み" : "未ログイン"}');
+          debugPrint('UID: ${_auth.currentUser?.uid}');
+          debugPrint('Email: ${_auth.currentUser?.email}');
+          debugPrint('エラー詳細: ${e.runtimeType}');
+          if (e.toString().contains('permission-denied')) {
+            debugPrint('📝 解決方法: Firebase Console → Firestore → ルール で認証済みユーザーの書き込みを許可してください');
+          }
+          return; // エラー時は成功メッセージを出さない
         }
       } else {
         debugPrint('Skipping Firestore update because no authenticated user.');
+        return; // 未認証時は成功メッセージを出さない
       }
       debugPrint(
         "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",

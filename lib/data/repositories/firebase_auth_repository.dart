@@ -1,6 +1,5 @@
 // 新規作成: FirebaseAuthを利用するリポジトリ
 import 'package:firebase_auth/firebase_auth.dart';
-feature/DM
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/entities/relationship.dart';
@@ -17,13 +16,11 @@ class FirebaseAuthRepository implements AuthRepository {
       name: user.email ?? '',
       bio: '',
       avatarUrl: user.photoURL,
-main
       relationship: Relationship.none,
     );
   }
 
   @override
-feature/DM
   Future<UserEntity?> login({required String id, required String password}) async {
     final cred = await _auth.signInWithEmailAndPassword(email: id, password: password);
     final user = cred.user;
@@ -33,7 +30,6 @@ feature/DM
       name: user.email ?? '',
       bio: '',
       avatarUrl: user.photoURL,
-main
       relationship: Relationship.none,
     );
   }
