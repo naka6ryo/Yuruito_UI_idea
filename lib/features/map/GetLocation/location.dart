@@ -38,11 +38,12 @@ class LocationService {
   Future<void> _sendAverageLocation() async {
     // 1. 現在のユーザー情報を取得
     final User? currentUser = _auth.currentUser;
+    final String? uid = currentUser?.uid;
     if (currentUser == null) {
-      debugPrint("ユーザーがログインしていません。");
-      return;
+      // 未ログイン時でもローカルの currentAverage に値を入れて
+      // マップ表示で 'me' マーカーを見せたい。
+      debugPrint("ユーザーがログインしていません。Firestore へは送信されません。");
     }
-    final String uid = currentUser.uid;
 
     try {
       // 位置情報の許可を確認
@@ -100,18 +101,27 @@ class LocationService {
       final double averageLat = sumLat / positions.length;
       final double averageLng = sumLng / positions.length;
 
+
       // update local cached averaged location so UI can read without Firestore
       try {
         currentAverage.value = LatLng(averageLat, averageLng);
       } catch (_) {}
 
-      // 計算した平均座標をFirestoreに送信
-      await _firestore.collection('locations').doc(uid).set({
-        'lat': averageLat,
-        'lng': averageLng,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
 
+      if (uid != null) {
+        try {
+          await _firestore.collection('locations').doc(uid).set({
+            'lat': averageLat,
+            'lng': averageLng,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (e) {
+          debugPrint('Failed to write averaged location to Firestore: $e');
+        }
+      } else {
+        debugPrint('Skipping Firestore update because no authenticated user.');
+      }
       debugPrint(
         "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
       );
