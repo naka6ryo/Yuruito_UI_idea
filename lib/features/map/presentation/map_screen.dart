@@ -288,6 +288,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
             builder: (context, myAveragedLocation, _) {
               final markers = <Marker>{};
               final Set<Circle> circles = {};
+              final Set<Polyline> polylines = {};
               if (myAveragedLocation != null) {
                 // Add custom marker for 'me' using generated icon when available
                 final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
@@ -329,6 +330,23 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       onTap: () {},
                     ),
                   );
+                  // If we have our averaged location, draw a connecting polyline from me -> user
+                  if (myAveragedLocation != null) {
+                    // Do not draw lines to users marked as 'passingMaybe'
+                    if (u.relationship != Relationship.passingMaybe) {
+                      final styleColor = _polylineColorForRelationship(u.relationship);
+                      final width = _polylineWidthForRelationship(u.relationship);
+                      polylines.add(Polyline(
+                        polylineId: PolylineId('conn_${u.id}'),
+                        points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                        color: styleColor,
+                        width: width,
+                        jointType: JointType.round,
+                        startCap: Cap.roundCap,
+                        endCap: Cap.roundCap,
+                      ));
+                    }
+                  }
                 }
               }
 
@@ -349,6 +367,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
                 markers: markers,
                 circles: circles,
+                polylines: polylines,
                 myLocationEnabled: false,
                 myLocationButtonEnabled: false,
                 onMapCreated: (controller) {
@@ -375,6 +394,37 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         return const Color(0xFFF9A8D4);
       default:
         return Colors.indigo;
+    }
+  }
+
+  // Polyline styling based on relationship. Colors taken from reference/Demo.html
+  Color _polylineColorForRelationship(Relationship r) {
+    switch (r) {
+      case Relationship.close:
+        return const Color(0xFF4F46E5); // indigo (thicker in demo)
+      case Relationship.friend:
+        return const Color(0xFF22C55E); // green
+      case Relationship.acquaintance:
+        return const Color(0xFFF97316); // orange
+      case Relationship.passingMaybe:
+        return const Color(0xFFF97316); // use orange for passing as demo used same hue
+      default:
+        return const Color(0xFF9CA3AF);
+    }
+  }
+
+  int _polylineWidthForRelationship(Relationship r) {
+    switch (r) {
+      case Relationship.close:
+        return 5; // thick
+      case Relationship.friend:
+        return 3; // medium
+      case Relationship.acquaintance:
+        return 1; // thin
+      case Relationship.passingMaybe:
+        return 1; // thin / subtle
+      default:
+        return 2;
     }
   }
 

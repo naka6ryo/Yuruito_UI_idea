@@ -11,8 +11,9 @@ UserEntity(
 		bio: 'カフェ巡りが好きです☕',
 		avatarUrl: 'https://placehold.co/48x48/A78BFA/FFFFFF.png?text=A',
 		relationship: Relationship.close,
-		lat: 35.6895,
-		lng: 139.6917,
+		// around Seimei Shrine (晴明神社)
+		lat: 35.02140,
+		lng: 135.75960,
 	),
 	UserEntity(
 		id: 'ren',
@@ -20,8 +21,8 @@ UserEntity(
 		bio: '週末はよく散歩してます。',
 		avatarUrl: 'https://placehold.co/48x48/86EFAC/FFFFFF.png?text=R',
 		relationship: Relationship.friend,
-		lat: 35.6938,
-		lng: 139.7036,
+		lat: 35.02310,
+		lng: 135.76120,
 	),
 	UserEntity(
 		id: 'yuki',
@@ -29,8 +30,8 @@ UserEntity(
 		bio: 'おすすめの音楽教えてください！',
 		avatarUrl: 'https://placehold.co/48x48/FDBA74/FFFFFF.png?text=Y',
 		relationship: Relationship.acquaintance,
-		lat: 35.6824,
-		lng: 139.7661,
+		lat: 35.01980,
+		lng: 135.75720,
 	),
 	UserEntity(
 		id: 'saki',
@@ -38,8 +39,8 @@ UserEntity(
 		bio: '人見知りです、よろしくお願いします。',
 		avatarUrl: 'https://placehold.co/48x48/F9A8D4/FFFFFF.png?text=S',
 		relationship: Relationship.passingMaybe,
-		lat: 35.6764,
-		lng: 139.6993,
+		lat: 35.02200,
+		lng: 135.75600,
 	),
 ];
 
