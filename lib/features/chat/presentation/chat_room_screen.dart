@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/chat_service_stub.dart';
@@ -52,7 +55,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(title: GestureDetector(onTap: () {}, child: Text(widget.name))),
       body: Column(
         children: [
@@ -88,6 +91,39 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         ],
       ),
     );
+
+    // On web, render inside phone-like framed container when there is ample width
+    if (kIsWeb) {
+      const aspect = 9 / 19.5;
+      const maxPhoneWidth = 384.0;
+      final availableWidth = MediaQuery.of(context).size.width;
+      if (availableWidth > maxPhoneWidth) {
+        // Center a framed container similar to AppShell
+        final maxH = MediaQuery.of(context).size.height * 0.95;
+        var width = math.min(maxPhoneWidth, availableWidth);
+        var height = width / aspect;
+        if (height > maxH) {
+          height = maxH;
+          width = height * aspect;
+        }
+
+        return Center(
+          child: Container(
+            width: width,
+            height: height,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: scaffold,
+          ),
+        );
+      }
+    }
+
+    return scaffold;
   }
 
   Widget _inputArea() {

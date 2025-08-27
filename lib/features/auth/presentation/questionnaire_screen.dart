@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/router/app_routes.dart';
+import '../../../core/theme/app_theme.dart';
 
 
 class QuestionnaireScreen extends StatefulWidget {
@@ -41,52 +42,70 @@ ctrl.text = answers[index] ?? '';
 
 @override
 Widget build(BuildContext context) {
-final progress = (index + 1) / questions.length;
+	final progress = (index + 1) / questions.length;
 
-
-return Scaffold(
-appBar: AppBar(title: const Text('アンケート')),
-body: Padding(
-padding: const EdgeInsets.all(16),
-child: Column(
-children: [
-LinearProgressIndicator(value: progress),
-const SizedBox(height: 16),
-Expanded(
-child: Column(
-mainAxisAlignment: MainAxisAlignment.center,
-children: [
-Text(questions[index], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
-const SizedBox(height: 12),
-TextField(
-controller: ctrl,
-minLines: 1,
-maxLines: index == 5 ? 4 : 1,
-textAlign: TextAlign.center,
-decoration: const InputDecoration(filled: true),
-),
-],
-),
-),
-					Row(
-						children: [
-							if (index > 0) TextButton(onPressed: () => _goto(index - 1), child: const Text('＜ 戻る')),
-							const Spacer(),
-							TextButton(onPressed: () => _goto((index + 1).clamp(0, questions.length - 1)), child: const Text('スキップ')),
-							const SizedBox(width: 8),
-							FilledButton(
-								onPressed: () {
-									if (index < questions.length - 1) {
-										_goto(index + 1);
-									} else {
-										Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
-									}
-								},
-								child: Text(index == questions.length - 1 ? '完了' : '次へ'),
+	return Scaffold(
+		body: Center(
+			child: ConstrainedBox(
+				constraints: const BoxConstraints(maxWidth: 420),
+				child: AspectRatio(
+					aspectRatio: 9 / 19.5,
+					child: Card(
+						margin: const EdgeInsets.all(16),
+						shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+						child: Padding(
+							padding: const EdgeInsets.all(16),
+							child: Column(
+								children: [
+									Row(
+										children: [
+											BackButton(),
+											const SizedBox(width: 8),
+											const Expanded(child: Text('アンケート', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+										],
+									),
+									const SizedBox(height: 8),
+									LinearProgressIndicator(value: progress, color: AppTheme.blue500),
+									const SizedBox(height: 16),
+									Expanded(
+										child: Column(
+											mainAxisAlignment: MainAxisAlignment.center,
+											children: [
+												Text(questions[index], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+												const SizedBox(height: 12),
+												TextField(
+													controller: ctrl,
+													minLines: 1,
+													maxLines: index == 5 ? 4 : 1,
+													textAlign: TextAlign.center,
+													decoration: const InputDecoration(filled: true),
+												),
+											],
+										),
+									),
+									Row(
+										children: [
+											if (index > 0) TextButton(onPressed: () => _goto(index - 1), child: const Text('＜ 戻る')),
+											const Spacer(),
+											TextButton(onPressed: () => _goto((index + 1).clamp(0, questions.length - 1)), child: const Text('スキップ')),
+											const SizedBox(width: 8),
+											FilledButton(
+												onPressed: () {
+													if (index < questions.length - 1) {
+														_goto(index + 1);
+													} else {
+														Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
+													}
+												},
+												child: Text(index == questions.length - 1 ? '完了' : '次へ'),
+											),
+										],
+									),
+								],
 							),
-						],
+						),
 					),
-				],
+				),
 			),
 		),
 	);
