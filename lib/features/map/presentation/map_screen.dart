@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../utils/google_maps_loader.dart';
 import '../state/map_controller.dart';
 import '../../chat/presentation/chat_room_screen.dart';
@@ -54,6 +55,83 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   // ...existing code...
 
   final Map<String, BitmapDescriptor> _userIconCache = {};
+
+  Future<BitmapDescriptor> _markerForMe(String name) async {
+    // Create a blue circular pin with the account name shown under it.
+    if (_userIconCache.containsKey('__me__')) return _userIconCache['__me__']!;
+
+    final color = const Color(0xFF3B82F6); // blue
+
+    // Layout text
+    final paragraphStyle = ui.ParagraphStyle(textDirection: ui.TextDirection.ltr, textAlign: TextAlign.center);
+    final textStyle = ui.TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600);
+    final builder = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyle)..addText(name);
+    final paragraph = builder.build();
+    paragraph.layout(const ui.ParagraphConstraints(width: 200));
+    final textWidth = paragraph.maxIntrinsicWidth;
+    final textHeight = paragraph.height;
+
+    const circleDiameter = 44.0;
+    const pointerHeight = 8.0;
+    const bubblePadH = 10.0;
+    const bubblePadV = 6.0;
+
+    final bubbleWidth = textWidth + bubblePadH * 2;
+    final bubbleHeight = textHeight + bubblePadV * 2;
+    final width = math.max(circleDiameter, bubbleWidth);
+    final height = circleDiameter + pointerHeight + bubbleHeight;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
+
+    // Draw bubble (white background for text)
+    final bubbleLeft = (width - bubbleWidth) / 2;
+    final bubbleTop = circleDiameter + pointerHeight;
+    final bubbleRect = RRect.fromRectAndRadius(Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight), const Radius.circular(8));
+    final bubblePaint = Paint()..color = Colors.white;
+    canvas.drawRRect(bubbleRect, bubblePaint);
+
+    // Pointer triangle
+    final tipCenterX = width / 2;
+    final path = Path();
+    path.moveTo(tipCenterX - 8, bubbleTop);
+    path.lineTo(tipCenterX + 8, bubbleTop);
+    path.lineTo(tipCenterX, bubbleTop - pointerHeight);
+    path.close();
+    canvas.drawPath(path, bubblePaint);
+
+    // Draw text (black) inside bubble
+    final textStyleBlack = ui.TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600);
+    final tb = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyleBlack)..addText(name);
+    final para = tb.build();
+    para.layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
+    final textX = (width - para.width) / 2;
+    final textY = bubbleTop + bubblePadV;
+    canvas.drawParagraph(para, Offset(textX, textY));
+
+    // Draw blue circular pin
+    final center = Offset(width / 2, circleDiameter / 2);
+    final pinPaint = Paint()..color = color;
+    canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
+    // white border
+    final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 4;
+    canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
+
+    try {
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(width.toInt(), height.toInt());
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+      // ignore: deprecated_member_use
+      final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
+      _userIconCache['__me__'] = descriptor;
+      return descriptor;
+    } catch (e) {
+      debugPrint('Failed to generate me marker: $e');
+      final descriptor = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+      _userIconCache['__me__'] = descriptor;
+      return descriptor;
+    }
+  }
 
   Future<BitmapDescriptor> _markerForUser(UserEntity u) async {
     if (_userIconCache.containsKey(u.id)) return _userIconCache[u.id]!;
@@ -145,9 +223,13 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       userIcons[u.id] = await _markerForUser(u);
     }
 
+  // Always prepare a 'me' icon. If the user is not authenticated, fall back to the name 'Me'.
+  final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
+  final BitmapDescriptor meIcon = await _markerForMe(meName);
+
   // We no longer read averaged location from Firestore here; LocationService
   // maintains the latest averaged location locally (ValueNotifier).
-  return [users, userIcons];
+  return [users, userIcons, meIcon];
   }
 
   @override
@@ -184,17 +266,30 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
           final users = (snap.data![0] as List<UserEntity>);
+          final BitmapDescriptor? meIcon = snap.data!.length > 2 ? snap.data![2] as BitmapDescriptor? : null;
 
           return ValueListenableBuilder<LatLng?>(
             valueListenable: LocationService().currentAverage,
             builder: (context, myAveragedLocation, _) {
               final markers = <Marker>{};
+              final Set<Circle> circles = {};
               if (myAveragedLocation != null) {
+                // Add custom marker for 'me' using generated icon when available
                 markers.add(Marker(
                   markerId: const MarkerId('me'),
                   position: myAveragedLocation,
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                   infoWindow: const InfoWindow(title: '現在地（平均）'),
+                ));
+
+                // Add a blue translucent circle under the marker
+                circles.add(Circle(
+                  circleId: const CircleId('me_circle'),
+                  center: myAveragedLocation,
+                  radius: 50,
+                  fillColor: const Color(0x553B82F6),
+                  strokeColor: const Color(0xFF3B82F6),
+                  strokeWidth: 2,
                 ));
               }
 
@@ -232,7 +327,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 style: _noLabelsMapStyle,
                 initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
                 markers: markers,
-                myLocationEnabled: true,
+                circles: circles,
+                myLocationEnabled: false,
                 myLocationButtonEnabled: false,
                 onMapCreated: (controller) {
                   _mapController = controller;
