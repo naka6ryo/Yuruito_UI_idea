@@ -13,8 +13,12 @@ Widget build(BuildContext context) {
 return Card(
 child: ListTile(
 leading: CircleAvatar(radius: 24, backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null),
-title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-subtitle: Text(_subtitle(user)),
+	title: Text(user.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+	subtitle: Text(
+		_subtitle(user),
+		maxLines: 2,
+		overflow: TextOverflow.ellipsis,
+	),
 trailing: _badge(user.relationship),
 ),
 );

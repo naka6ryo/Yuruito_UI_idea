@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
+import '../../../domain/services/chat_service.dart';
+import '../../../data/services/chat_service_stub.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String name;
   final String status; // 顔見知り → スタンプのみ
-  const ChatRoomScreen({super.key, required this.name, required this.status});
+  final String? initialMessage;
+  final bool initialIsSticker;
+  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false});
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
+// Model class removed: messages list is held directly in state for simplicity.
+
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
-  final List<({String text, bool sent, bool sticker})> messages = [];
+  // Replace this stub with your server-backed implementation when ready.
+  final ChatService _chatService = StubChatService();
+
+  final List<({String text, bool sent, bool sticker, String from})> messages = [];
   final ctrl = TextEditingController();
 
   bool get stickerOnly => widget.status == '顔見知り';
@@ -18,18 +27,26 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   @override
   void initState() {
     super.initState();
-    if (stickerOnly) {
-      messages.addAll([
-        (text: '👋', sent: false, sticker: true),
-        (text: '😊', sent: true, sticker: true),
-      ]);
-    } else {
-      messages.addAll([
-        (text: 'こんにちは！', sent: false, sticker: false),
-        (text: '元気？', sent: true, sticker: false),
-        (text: '元気だよー！', sent: false, sticker: false),
-        (text: '😊', sent: true, sticker: true),
-      ]);
+    // Load initial messages via ChatService
+    _load();
+  }
+
+  Future<void> _load() async {
+    final loaded = await _chatService.loadMessages(widget.name);
+    setState(() {
+      messages.addAll(loaded);
+    });
+    // Listen for incoming messages
+    _chatService.onMessage(widget.name).listen((m) {
+      setState(() => messages.add(m));
+    });
+    // If an initial message/sticker was provided, add and send it now
+    if (widget.initialMessage != null) {
+      final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
+      setState(() {
+        messages.add(msg);
+      });
+      await _chatService.sendMessage(widget.name, msg);
     }
   }
 
@@ -45,8 +62,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               itemCount: messages.length,
               itemBuilder: (context, i) {
                 final m = messages[i];
+                final sent = m.from == 'Me' || m.sent;
                 return Row(
-                  mainAxisAlignment: m.sent ? MainAxisAlignment.end : MainAxisAlignment.start,
+                  mainAxisAlignment: sent ? MainAxisAlignment.end : MainAxisAlignment.start,
                   children: [
                     Container(
                       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -54,12 +72,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                       decoration: m.sticker
                           ? const BoxDecoration()
                           : BoxDecoration(
-                              color: m.sent ? const Color(0xFF3B82F6) : Colors.white,
+                              color: sent ? const Color(0xFF3B82F6) : Colors.white,
                               borderRadius: BorderRadius.circular(18),
                             ),
                       child: m.sticker
                           ? Text(m.text, style: const TextStyle(fontSize: 28))
-                          : Text(m.text, style: TextStyle(color: m.sent ? Colors.white : Colors.black87)),
+                          : Text(m.text, style: TextStyle(color: sent ? Colors.white : Colors.black87)),
                     ),
                   ],
                 );
@@ -104,13 +122,38 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     children: [
                       IconButton(onPressed: _toggleStickers, icon: const Icon(Icons.emoji_emotions_outlined)),
                       Expanded(
-                        child: TextField(
-                          controller: ctrl,
-                          maxLength: 30,
-                          decoration: const InputDecoration(hintText: 'メッセージ...', counterText: '', filled: true),
+                        child: Stack(
+                          alignment: Alignment.centerRight,
+                          children: [
+                            TextField(
+                              controller: ctrl,
+                              maxLength: 30,
+                              decoration: InputDecoration(
+                                hintText: 'メッセージ...',
+                                filled: true,
+                                fillColor: const Color(0xFFF3F4F6),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
+                                counterText: '',
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 56),
+                              child: Text('${ctrl.text.length}/30', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(onPressed: _sendText, icon: const Icon(Icons.send, color: Color(0xFF3B82F6))),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: _sendText,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(color: const Color(0xFF3B82F6), shape: BoxShape.circle),
+                          child: const Icon(Icons.send, color: Colors.white),
+                        ),
+                      ),
                     ],
                   ),
           ),
@@ -126,16 +169,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   void _sendText() {
     if (ctrl.text.trim().isEmpty) return;
+    final msg = (text: ctrl.text.trim(), sent: true, sticker: false, from: 'Me');
     setState(() {
-      messages.add((text: ctrl.text.trim(), sent: true, sticker: false));
+      messages.add(msg);
     });
     ctrl.clear();
+    _chatService.sendMessage(widget.name, msg);
   }
 
   void _sendSticker(String e) {
+    final msg = (text: e, sent: true, sticker: true, from: 'Me');
     setState(() {
-      messages.add((text: e, sent: true, sticker: true));
+      messages.add(msg);
     });
     _showStickerPanel = false;
+    _chatService.sendMessage(widget.name, msg);
   }
 }

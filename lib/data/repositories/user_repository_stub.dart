@@ -18,7 +18,7 @@ avatarUrl: 'https://placehold.co/48x48/F9A8D4/FFFFFF.png?text=S', relationship: 
 
 @override
 Future<List<UserEntity>> fetchAcquaintances() async {
-return _users.where((u) => u.relationship != Relationship.passingMaybe).toList();
+	return _users.where((u) => u.relationship != Relationship.passingMaybe).toList();
 }
 
 
@@ -36,4 +36,10 @@ return _users.firstWhere((u) => u.id == id);
 return null;
 }
 }
+
+@override
+Future<List<UserEntity>> fetchAllUsers() async {
+	return List<UserEntity>.from(_users);
+}
+
 }

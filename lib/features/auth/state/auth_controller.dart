@@ -33,4 +33,11 @@ class AuthController extends StateNotifier<AuthState> {
 		final user = await repo.login(id: id, password: password);
 		state = AuthState(user: user, loading: false);
 	}
+
+	Future<void> logout() async {
+		state = state.copyWith(loading: true);
+		final repo = ref.read(authRepositoryProvider);
+		await repo.logout();
+		state = const AuthState(user: null, loading: false);
+	}
 }
