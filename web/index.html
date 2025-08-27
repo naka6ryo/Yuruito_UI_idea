@@ -18,7 +18,7 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="ゆるいと Web アプリケーション">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -29,8 +29,30 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>yuruito</title>
+  <title>ゆるいと</title>
   <link rel="manifest" href="manifest.json">
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.16.0/firebase-app.js';
+    import { getAuth } from 'https://www.gstatic.com/firebasejs/9.16.0/firebase-auth.js';
+    import { getFirestore } from 'https://www.gstatic.com/firebasejs/9.16.0/firebase-firestore.js';
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: 'AIzaSyAMjJl_paRPQhcDTuh891BU3ugfUA69Ibc',
+      authDomain: 'connecting-thread.firebaseapp.com',
+      projectId: 'connecting-thread',
+      storageBucket: 'connecting-thread.firebasestorage.app',
+      messagingSenderId: '1036491114952',
+      appId: '1:1036491114952:web:fe6f6dd8fcd573baa198fd',
+      measurementId: 'G-L5Z7MWYBXS'
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    console.log('Firebase initialized (module)');
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
