@@ -3,11 +3,20 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class LocationService {
+  // Singleton so multiple parts of the app can read the latest averaged location.
+  static final LocationService _instance = LocationService._internal();
+  factory LocationService() => _instance;
+  LocationService._internal();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Timer? _timer;
+
+  // Expose the most recently computed averaged location locally.
+  final ValueNotifier<LatLng?> currentAverage = ValueNotifier<LatLng?>(null);
 
   void startLocationUpdates() {
     if (_timer?.isActive ?? false) {
@@ -51,7 +60,7 @@ class LocationService {
 
       for (int i = 0; i < numberOfReadings; i++) {
         final Position pos = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
         );
         positions.add(pos);
         debugPrint(
@@ -79,6 +88,11 @@ class LocationService {
 
       final double averageLat = sumLat / positions.length;
       final double averageLng = sumLng / positions.length;
+
+      // update local cached averaged location so UI can read without Firestore
+      try {
+        currentAverage.value = LatLng(averageLat, averageLng);
+      } catch (_) {}
 
       // 計算した平均座標をFirestoreに送信
       await _firestore.collection('locations').doc(uid).set({

@@ -16,8 +16,9 @@ class SettingsScreen extends ConsumerWidget {
         const _Group(title: 'アカウント設定', items: ['メールアドレスの変更', 'パスワードの変更', 'SNS連携']),
         _Group(title: 'その他', items: ['通知設定', 'ログアウト'], onTap: (label) async {
           if (label == 'ログアウト') {
+            final nav = Navigator.of(context);
             await ref.read(authControllerProvider.notifier).logout();
-            Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+            nav.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
           }
         }),
       ],

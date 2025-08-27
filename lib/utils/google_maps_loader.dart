@@ -1,3 +1,4 @@
+// ignore_for_file: unused_import
 // Conditional import delegator: uses the web implementation when compiled for web,
 // otherwise uses the stub that immediately completes.
 import 'google_maps_loader_stub.dart' if (dart.library.html) 'google_maps_loader_web.dart';

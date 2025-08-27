@@ -7,13 +7,14 @@ import '../../chat/presentation/chat_room_screen.dart';
 import '../../../data/repositories/user_repository_stub.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
+import '../../../features/map/GetLocation/location.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'dart:math' as math;
 
 /// MapScreen using Google Maps and showing all users from the repository (no filtering).
 class MapScreen extends StatefulWidget {
-  const MapScreen({Key? key}) : super(key: key);
+  const MapScreen({super.key});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -118,8 +119,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
     final picture = recorder.endRecording();
     final img = await picture.toImage(width.toInt(), height.toInt());
-    final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
-    final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
+  final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+  // fromBytes is deprecated on some versions; suppress the deprecation here.
+  // ignore: deprecated_member_use
+  final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
     _userIconCache[u.id] = descriptor;
     return descriptor;
   }
@@ -133,7 +136,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     for (final u in users) {
       userIcons[u.id] = await _markerForUser(u);
     }
-    return [users, userIcons];
+
+  // We no longer read averaged location from Firestore here; LocationService
+  // maintains the latest averaged location locally (ValueNotifier).
+  return [users, userIcons];
   }
 
   @override
@@ -166,39 +172,60 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           }
           final users = snap.hasData ? (snap.data![0] as List<UserEntity>) : <UserEntity>[];
 
-          final markers = <Marker>{};
-    for (final u in users) {
-            if (u.lat != null && u.lng != null) {
-              markers.add(
-                Marker(
-                  markerId: MarkerId(u.id),
-                  position: LatLng(u.lat!, u.lng!),
-      icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-                  infoWindow: InfoWindow(
-                    title: u.name,
-                    snippet: u.relationship.label,
-                    onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
-                  ),
-                  onTap: () {},
-                ),
+          return ValueListenableBuilder<LatLng?>(
+            valueListenable: LocationService().currentAverage,
+            builder: (context, myAveragedLocation, _) {
+              final markers = <Marker>{};
+              if (myAveragedLocation != null) {
+                markers.add(Marker(
+                  markerId: const MarkerId('me'),
+                  position: myAveragedLocation,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  infoWindow: const InfoWindow(title: '現在地（平均）'),
+                ));
+              }
+
+              for (final u in users) {
+                if (u.lat != null && u.lng != null) {
+                  markers.add(
+                    Marker(
+                      markerId: MarkerId(u.id),
+                      position: LatLng(u.lat!, u.lng!),
+                      icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                      infoWindow: InfoWindow(
+                        title: u.name,
+                        snippet: u.relationship.label,
+                        onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
+                      ),
+                      onTap: () {},
+                    ),
+                  );
+                }
+              }
+
+              // Decide initial camera center: prefer local averaged location, then first user, then default Tokyo.
+              LatLng initialCenter;
+              if (myAveragedLocation != null) {
+                initialCenter = myAveragedLocation;
+              } else {
+                final initialUser = users.firstWhere(
+                  (u) => u.lat != null && u.lng != null,
+                  orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
+                );
+                initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
+              }
+
+              return GoogleMap(
+                style: _noLabelsMapStyle,
+                initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
+                markers: markers,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  // style is applied via GoogleMap.style property above
+                },
               );
-            }
-          }
-
-          final initial = users.firstWhere(
-            (u) => u.lat != null && u.lng != null,
-            orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
-          );
-
-          return GoogleMap(
-            initialCameraPosition: CameraPosition(target: LatLng(initial.lat!, initial.lng!), zoom: 14),
-            markers: markers,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: false,
-            onMapCreated: (controller) {
-              _mapController = controller;
-              // apply style; ignore errors
-              controller.setMapStyle(_noLabelsMapStyle);
             },
           );
         },
