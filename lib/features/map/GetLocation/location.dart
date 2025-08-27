@@ -114,7 +114,6 @@ class LocationService {
           await _firestore.collection('locations').doc(uid).set({
             'lat': averageLat,
             'lng': averageLng,
-            'location': GeoPoint(averageLat, averageLng),
             'updatedAt': DateTime.now().toIso8601String(),
           }, SetOptions(merge: true));
         } catch (e) {
