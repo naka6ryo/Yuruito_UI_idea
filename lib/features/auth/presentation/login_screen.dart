@@ -41,6 +41,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 								child: Column(
 									mainAxisAlignment: MainAxisAlignment.center,
 									children: [
+										if (state.errorMessage != null) ...[
+											Text(
+												state.errorMessage!,
+												style: const TextStyle(color: Colors.red),
+											),
+											const SizedBox(height: 12),
+										],
 										const CircleAvatar(
 											radius: 36,
 											backgroundColor: Color(0xFFDBEAFE),
