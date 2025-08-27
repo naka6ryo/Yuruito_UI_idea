@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -276,7 +277,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           }
 
           if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator(color: AppTheme.blue500));
           }
 
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
@@ -289,16 +290,19 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               final markers = <Marker>{};
               final Set<Circle> circles = {};
               final Set<Polyline> polylines = {};
-              if (myAveragedLocation != null) {
+                if (myAveragedLocation != null) {
                 // Add custom marker for 'me' using generated icon when available
                 final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
                 // Marker.anchor requires a non-null Offset (x,y) in [0..1]
+                final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
                 markers.add(Marker(
                   markerId: const MarkerId('me'),
                   position: myAveragedLocation,
                   icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                   anchor: Offset(meAnchor.dx, meAnchor.dy),
-                  infoWindow: const InfoWindow(title: '現在地（平均）'),
+                  // Remove the small built-in InfoWindow and open full profile modal on first tap.
+                  infoWindow: InfoWindow.noText,
+                  onTap: () => _showProfileModal(context, meName, '現在地（平均）', const Color(0xFF3B82F6)),
                 ));
 
                 // Add a blue translucent circle under the marker
@@ -322,12 +326,9 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       position: LatLng(u.lat!, u.lng!),
                       icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
             anchor: Offset(anchor.dx, anchor.dy),
-                      infoWindow: InfoWindow(
-                        title: u.name,
-                        snippet: u.relationship.label,
-                        onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
-                      ),
-                      onTap: () {},
+                      // Do not show the small InfoWindow bubble. Open the full profile modal on first tap.
+                      infoWindow: InfoWindow.noText,
+                      onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
                     ),
                   );
                   // If we have our averaged location, draw a connecting polyline from me -> user
@@ -433,50 +434,62 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.transparent,
       builder: (ctx) {
         return DraggableScrollableSheet(
           initialChildSize: 0.45,
           minChildSize: 0.25,
           maxChildSize: 0.9,
-          builder: (context, controller) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(radius: 32, backgroundColor: color, child: Text(name.isNotEmpty ? name[0] : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
-                    const SizedBox(width: 12),
-                    Expanded(
+          builder: (context, controller) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          Text(status, style: const TextStyle(color: Colors.grey)),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(radius: 32, backgroundColor: color, child: Text(name.isNotEmpty ? name[0] : '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 4),
+                                    Text(status, style: const TextStyle(color: Colors.grey)),
+                                  ],
+                                ),
+                              ),
+                              IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              controller: controller,
+                              child: Column(children: const [SizedBox(height: 8)]),
+                            ),
+                          ),
+                          _ProfileChatInput(targetName: name, status: status),
                         ],
                       ),
                     ),
-                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: controller,
-                    child: Column(children: const [SizedBox(height: 8)]),
                   ),
                 ),
-                _ProfileChatInput(targetName: name, status: status),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
