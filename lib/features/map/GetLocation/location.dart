@@ -18,6 +18,9 @@ class LocationService {
   // Expose the most recently computed averaged location locally.
   final ValueNotifier<LatLng?> currentAverage = ValueNotifier<LatLng?>(null);
 
+  // 他のユーザーの位置情報を格納するMap
+  final ValueNotifier<Map<String, LatLng>> otherUsersLocations = ValueNotifier<Map<String, LatLng>>({});
+
   void startLocationUpdates() {
     if (_timer?.isActive ?? false) {
       return;
@@ -41,6 +44,10 @@ class LocationService {
         
         // 最初の実行も行う
         _sendAverageLocation();
+        
+        // 他のユーザーの位置情報監視も開始
+        startWatchingOtherUsersLocations();
+        
         break; // 認証完了したらループを抜ける
       }
     }
@@ -49,6 +56,53 @@ class LocationService {
   void stopLocationUpdates() {
     _timer?.cancel();
     debugPrint("位置情報の自動更新を停止しました。");
+  }
+
+  /// 他のユーザーの位置情報をリアルタイムで監視開始
+  void startWatchingOtherUsersLocations() {
+    _firestore.collection('locations').snapshots().listen((snapshot) {
+      final currentUserId = _auth.currentUser?.uid;
+      final Map<String, LatLng> locations = {};
+
+      for (final doc in snapshot.docs) {
+        // 自分自身は除外
+        if (doc.id == currentUserId) continue;
+
+        try {
+          final data = doc.data();
+          if (data.containsKey('location')) {
+            final GeoPoint? geoPoint = data['location'] as GeoPoint?;
+            if (geoPoint != null) {
+              locations[doc.id] = LatLng(geoPoint.latitude, geoPoint.longitude);
+            }
+          }
+        } catch (e) {
+          debugPrint('位置情報の解析エラー (${doc.id}): $e');
+        }
+      }
+
+      otherUsersLocations.value = locations;
+      debugPrint('他のユーザーの位置情報を更新: ${locations.length}人');
+    }, onError: (error) {
+      debugPrint('他のユーザーの位置情報監視エラー: $error');
+    });
+  }
+
+  /// 特定のユーザーの位置情報を取得
+  Future<LatLng?> getUserLocation(String userId) async {
+    try {
+      final doc = await _firestore.collection('locations').doc(userId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final GeoPoint? geoPoint = data['location'] as GeoPoint?;
+        if (geoPoint != null) {
+          return LatLng(geoPoint.latitude, geoPoint.longitude);
+        }
+      }
+    } catch (e) {
+      debugPrint('ユーザー位置情報取得エラー ($userId): $e');
+    }
+    return null;
   }
 
   /// 30秒ごとに呼び出され、位置情報を3回取得してその平均値をFirestoreに送信する
@@ -127,16 +181,21 @@ class LocationService {
       // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
       if (uid != null) {
         try {
-          debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
-          debugPrint('保存先パス: locations/$uid');
-          debugPrint('保存データ: location=${GeoPoint(averageLat, averageLng)}, updatedAt=${DateTime.now().toIso8601String()}');
-          
-          await _firestore.collection('locations').doc(uid).set({
-            'location': GeoPoint(averageLat, averageLng),
-            'updatedAt': DateTime.now().toIso8601String(),
-          }, SetOptions(merge: true));
-          
-          debugPrint('✅ Firestore保存成功: locations/$uid');
+          if (uid.isNotEmpty) {
+            debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
+            debugPrint('保存先パス: locations/$uid');
+            
+            final geoPoint = GeoPoint(averageLat, averageLng);
+            final timestamp = DateTime.now().toIso8601String();
+            debugPrint('保存データ: location=GeoPoint(${geoPoint.latitude}, ${geoPoint.longitude}), updatedAt=$timestamp');
+            
+            await _firestore.collection('locations').doc(uid).set({
+              'location': geoPoint,
+              'updatedAt': timestamp,
+            }, SetOptions(merge: true));
+            
+            debugPrint('✅ Firestore保存成功: locations/$uid');
+          }
         } catch (e) {
           debugPrint('❌ Failed to write averaged location to Firestore: $e');
           debugPrint('認証状態: ${_auth.currentUser != null ? "ログイン済み" : "未ログイン"}');
@@ -152,9 +211,11 @@ class LocationService {
         debugPrint('Skipping Firestore update because no authenticated user.');
         return; // 未認証時は成功メッセージを出さない
       }
-      debugPrint(
-        "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
-      );
+      if (uid.isNotEmpty) {
+        debugPrint(
+          "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
+        );
+      }
     } catch (e) {
       debugPrint("位置情報の取得または更新中にエラーが発生しました: ${e.toString()}");
     }
