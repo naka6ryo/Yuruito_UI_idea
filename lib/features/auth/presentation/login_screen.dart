@@ -41,6 +41,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 								child: Column(
 									mainAxisAlignment: MainAxisAlignment.center,
 									children: [
+										if (state.errorMessage != null) ...[
+											Text(
+												state.errorMessage!,
+												style: const TextStyle(color: Colors.red),
+											),
+											const SizedBox(height: 12),
+										],
 										const CircleAvatar(
 											radius: 36,
 											backgroundColor: Color(0xFFDBEAFE),
@@ -64,10 +71,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 																								onPressed: state.loading
 																										? null
 																										: () async {
-																												final navigator = Navigator.of(context);
+																												// ログイン処理
 																												await ref.read(authControllerProvider.notifier).login(idCtrl.text, pwCtrl.text);
 																												if (!mounted) return;
-																												navigator.pushReplacementNamed(AppRoutes.shell);
+																												// 成功時のみホーム画面へ遷移
+																												final currentState = ref.read(authControllerProvider);
+																												if (currentState.user != null) {
+																													Navigator.of(context).pushReplacementNamed(AppRoutes.shell);
+																												}
 																											},
 												child: state.loading ? const CircularProgressIndicator() : const Text('ログイン'),
 											),
