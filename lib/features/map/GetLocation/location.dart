@@ -97,7 +97,7 @@ class LocationService {
       } catch (_) {}
 
       // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
-      
+
       if (uid != null) {
         try {
           await _firestore.collection('locations').doc(uid).set({
@@ -111,7 +111,6 @@ class LocationService {
       } else {
         debugPrint('Skipping Firestore update because no authenticated user.');
       }
-
       debugPrint(
         "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
       );
