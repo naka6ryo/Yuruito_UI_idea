@@ -2,19 +2,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // FirebaseAuthをインポート
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LocationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance; // FirebaseAuthのインスタンス
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   Timer? _timer;
 
   void startLocationUpdates() {
     if (_timer?.isActive ?? false) {
       return;
     }
+    // 30秒に1回、位置情報の取得と送信プロセスを開始する
     _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      _sendCurrentLocation();
+      _sendAverageLocation(); // メソッド名を変更
     });
     debugPrint("位置情報の自動更新を開始しました。");
   }
@@ -24,19 +25,18 @@ class LocationService {
     debugPrint("位置情報の自動更新を停止しました。");
   }
 
-  /// 現在地を取得してFirestoreの特定UIDドキュメントを更新する
-  Future<void> _sendCurrentLocation() async {
+  /// 30秒ごとに呼び出され、位置情報を3回取得してその平均値をFirestoreに送信する
+  Future<void> _sendAverageLocation() async {
     // 1. 現在のユーザー情報を取得
     final User? currentUser = _auth.currentUser;
-
-    // ログインしていない場合は処理を中断
     if (currentUser == null) {
-      debugPrint("ユーザーがログインしていません。位置情報の更新をスキップします。");
+      debugPrint("ユーザーがログインしていません。");
       return;
     }
     final String uid = currentUser.uid;
 
     try {
+      // 位置情報の許可を確認
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
@@ -44,20 +44,51 @@ class LocationService {
         return;
       }
 
-      // 2. 現在地を取得
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      // 位置情報を短時間に3回取得する
+      final List<Position> positions = [];
+      const int numberOfReadings = 3;
+      const Duration delayBetweenReadings = Duration(seconds: 1);
 
-      // 3. 取得した座標をFirestoreに送信（新しいスキーマに合わせて変更）
+      for (int i = 0; i < numberOfReadings; i++) {
+        final Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        positions.add(pos);
+        debugPrint(
+          "${i + 1}回目の座標取得: Lat ${pos.latitude}, Lng ${pos.longitude}",
+        );
+
+        // 最後以外は1秒待つ
+        if (i < numberOfReadings - 1) {
+          await Future.delayed(delayBetweenReadings);
+        }
+      }
+
+      //取得した3つの座標の平均を計算する
+      if (positions.length < numberOfReadings) {
+        debugPrint("必要な数の座標を取得できませんでした。");
+        return;
+      }
+
+      double sumLat = 0;
+      double sumLng = 0;
+      for (final pos in positions) {
+        sumLat += pos.latitude;
+        sumLng += pos.longitude;
+      }
+
+      final double averageLat = sumLat / positions.length;
+      final double averageLng = sumLng / positions.length;
+
+      // 計算した平均座標をFirestoreに送信
       await _firestore.collection('locations').doc(uid).set({
-        'lat': position.latitude, // 'latitude' -> 'lat'
-        'lng': position.longitude, // 'longitude' -> 'lng'
-        'updatedAt': FieldValue.serverTimestamp(), // 'timestamp' -> 'updatedAt'
-      }, SetOptions(merge: true)); // merge:trueで他のフィールドを消さずに更新
+        'lat': averageLat,
+        'lng': averageLng,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       debugPrint(
-        "UID: $uid の位置情報を更新しました: Lat ${position.latitude}, Lng ${position.longitude}",
+        "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
       );
     } catch (e) {
       debugPrint("位置情報の取得または更新中にエラーが発生しました: ${e.toString()}");
