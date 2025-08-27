@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/router/app_routes.dart';
 import '../../auth/state/auth_controller.dart';
@@ -12,7 +13,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scaffold = Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6), // light grey background like mock
+  backgroundColor: AppTheme.scaffoldBg, // light grey background like mock
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,

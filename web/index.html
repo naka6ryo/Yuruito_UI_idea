@@ -31,6 +31,15 @@
 
   <title>ゆるいと</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    /* Match AppTheme.scaffoldBg (#F3F4F6) so the page background outside the Flutter canvas
+       matches the app's scaffold background on web */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background-color: #F3F4F6;
+    }
+  </style>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.16.0/firebase-app.js';
     import { getAuth } from 'https://www.gstatic.com/firebasejs/9.16.0/firebase-auth.js';
