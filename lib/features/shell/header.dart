@@ -49,8 +49,8 @@ onPressed: () => setState(() => _searching = true),
 icon: const Icon(Icons.search),
 ),
 IconButton(
-onPressed: () {},
-icon: const Icon(Icons.settings_outlined),
+	onPressed: () => Navigator.of(context).pushNamed('/settings'),
+	icon: const Icon(Icons.settings_outlined),
 ),
 ]),
 );
