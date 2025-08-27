@@ -47,9 +47,20 @@ class LocationService {
     try {
       // 位置情報の許可を確認
       LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        // ユーザーに一度だけ許可をリクエストしてみる
+        permission = await Geolocator.requestPermission();
+      }
+
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         debugPrint("位置情報の許可がありません。");
+        return;
+      }
+
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        debugPrint("位置情報サービスが無効です。");
         return;
       }
 
