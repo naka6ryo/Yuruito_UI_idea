@@ -1,25 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 位置情報を保存するコレクション
-    match /locations/{userId} {
-      allow read, write: if request.auth != null 
-                         && request.auth.uid == userId;
+    // 緊急テスト用: 全て許可（本番では使用禁止）
+    match /{document=**} {
+      allow read, write: if true;
     }
-    
-    // DM機能（conversations・messages）
-    match /conversations/{conversationId} {
-      allow read, write: if request.auth != null 
-                         && request.auth.uid in resource.data.members;
-    }
-    
-    match /conversations/{conversationId}/messages/{messageId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // 開発用（必要に応じてコメントアウト）
-    // match /{document=**} {
-    //   allow read, write: if request.auth != null;
-    // }
   }
 }
