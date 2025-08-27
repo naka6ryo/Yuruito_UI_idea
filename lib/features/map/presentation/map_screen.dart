@@ -117,14 +117,22 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
 
-    final picture = recorder.endRecording();
-    final img = await picture.toImage(width.toInt(), height.toInt());
-  final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
-  // fromBytes is deprecated on some versions; suppress the deprecation here.
-  // ignore: deprecated_member_use
-  final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
-    _userIconCache[u.id] = descriptor;
-    return descriptor;
+    try {
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(width.toInt(), height.toInt());
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+      // fromBytes is deprecated on some versions; suppress the deprecation here.
+      // ignore: deprecated_member_use
+      final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
+      _userIconCache[u.id] = descriptor;
+      return descriptor;
+    } catch (e) {
+      debugPrint('Failed to generate marker image for ${u.id}: $e');
+      // Fallback to default marker
+      final descriptor = BitmapDescriptor.defaultMarker;
+      _userIconCache[u.id] = descriptor;
+      return descriptor;
+    }
   }
 
   Future<List<dynamic>> _prepareData() async {
@@ -151,8 +159,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         future: _prepareData(),
         builder: (context, snap) {
           // snap.data will be [List<UserEntity>, Map<Relationship, BitmapDescriptor>]
-          final icons = snap.hasData ? (snap.data![1] as Map<String, BitmapDescriptor>) : <String, BitmapDescriptor>{};
-          if (snap.hasError) {
+            if (snap.hasError) {
             // If waitForMaps throws on web, show a clear message instead of crashing.
             return Center(
               child: Padding(
@@ -170,7 +177,13 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               ),
             );
           }
-          final users = snap.hasData ? (snap.data![0] as List<UserEntity>) : <UserEntity>[];
+
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
+          final users = (snap.data![0] as List<UserEntity>);
 
           return ValueListenableBuilder<LatLng?>(
             valueListenable: LocationService().currentAverage,
