@@ -55,6 +55,8 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   // ...existing code...
 
   final Map<String, BitmapDescriptor> _userIconCache = {};
+  // Store per-icon anchor so the marker's LatLng corresponds to the circular pin center.
+  final Map<String, Offset> _userIconAnchors = {};
 
   Future<BitmapDescriptor> _markerForMe(String name) async {
     // Create a blue circular pin with the account name shown under it.
@@ -124,11 +126,19 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache['__me__'] = descriptor;
+  // Compute anchor so the marker coordinate corresponds to the circular pin center
+  // (use circle center relative to total image height). Keep it simple so
+  // anchorY = circleCenterY / height. Device-pixel quirks can be handled later
+  // if necessary via a small runtime calibration routine.
+  final double anchorY = (circleDiameter / 2) / height;
+  _userIconAnchors['__me__'] = Offset(0.5, anchorY);
+  debugPrint('Generated me icon size=${width}x$height anchorY=$anchorY (circleCenter=${circleDiameter/2})');
       return descriptor;
     } catch (e) {
       debugPrint('Failed to generate me marker: $e');
       final descriptor = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
       _userIconCache['__me__'] = descriptor;
+      _userIconAnchors['__me__'] = const Offset(0.5, 1.0);
       return descriptor;
     }
   }
@@ -202,13 +212,18 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       // fromBytes is deprecated on some versions; suppress the deprecation here.
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
-      _userIconCache[u.id] = descriptor;
+    _userIconCache[u.id] = descriptor;
+    // Anchor the marker to the circular pin center in the generated image.
+    final double anchorY = (circleDiameter / 2) / height;
+    _userIconAnchors[u.id] = Offset(0.5, anchorY);
+    debugPrint('Generated icon for ${u.id} size=${width}x$height anchorY=$anchorY');
       return descriptor;
     } catch (e) {
       debugPrint('Failed to generate marker image for ${u.id}: $e');
       // Fallback to default marker
       final descriptor = BitmapDescriptor.defaultMarker;
       _userIconCache[u.id] = descriptor;
+      _userIconAnchors[u.id] = const Offset(0.5, 1.0);
       return descriptor;
     }
   }
@@ -275,10 +290,13 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
               final Set<Circle> circles = {};
               if (myAveragedLocation != null) {
                 // Add custom marker for 'me' using generated icon when available
+                final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
+                // Marker.anchor requires a non-null Offset (x,y) in [0..1]
                 markers.add(Marker(
                   markerId: const MarkerId('me'),
                   position: myAveragedLocation,
                   icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  anchor: Offset(meAnchor.dx, meAnchor.dy),
                   infoWindow: const InfoWindow(title: '現在地（平均）'),
                 ));
 
@@ -295,11 +313,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
               for (final u in users) {
                 if (u.lat != null && u.lng != null) {
-                  markers.add(
+                  final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
+          // Use the computed anchor if available, otherwise bottom-center.
+          markers.add(
                     Marker(
                       markerId: MarkerId(u.id),
                       position: LatLng(u.lat!, u.lng!),
                       icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+            anchor: Offset(anchor.dx, anchor.dy),
                       infoWindow: InfoWindow(
                         title: u.name,
                         snippet: u.relationship.label,
