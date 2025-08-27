@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/chat_service_stub.dart';
 
@@ -167,7 +168,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                               decoration: InputDecoration(
                                 hintText: 'メッセージ...',
                                 filled: true,
-                                fillColor: const Color(0xFFF3F4F6),
+                                fillColor: AppTheme.scaffoldBg,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                                 counterText: '',

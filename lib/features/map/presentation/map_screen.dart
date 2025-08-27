@@ -558,7 +558,7 @@ class _ProfileChatInputState extends State<_ProfileChatInput> {
                         decoration: InputDecoration(
                           hintText: 'ひとこと送る...',
                           filled: true,
-                          fillColor: const Color(0xFFF3F4F6),
+                          fillColor: AppTheme.scaffoldBg,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
                           counterText: '',
