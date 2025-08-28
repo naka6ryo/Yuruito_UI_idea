@@ -9,10 +9,11 @@ import '../widgets/intimacy_message_widget.dart';
 class ChatRoomScreen extends StatefulWidget {
   final String name;
   final String status; // 顔見知り → スタンプのみ
+  final String? peerUid; // optional: the other user's uid
   final String? initialMessage;
   final bool initialIsSticker;
   final String? conversationId; // 追加: 正しい会話識別のために使用
-  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false, this.conversationId});
+  const ChatRoomScreen({super.key, required this.name, required this.status, this.peerUid, this.initialMessage, this.initialIsSticker = false, this.conversationId});
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
