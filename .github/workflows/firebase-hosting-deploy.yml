@@ -2,7 +2,7 @@ name: Build and Deploy Web to Firebase Hosting
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, UI_fix ]
 
 jobs:
   build-and-deploy:
