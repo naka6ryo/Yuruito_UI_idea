@@ -269,8 +269,6 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
           ],
         );
 
-
-
       default:
         return const Text('エラー：不明な親密度レベル');
     }
