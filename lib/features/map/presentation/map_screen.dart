@@ -617,12 +617,14 @@ class _MapProfileModalState extends State<MapProfileModal> {
       if (user == null) return;
       
       final now = DateTime.now();
-      await FirebaseFirestore.instance.collection('locations').doc(user.uid).update({
+      // 対象ユーザーのlocationsドキュメントに送信者の情報とともに保存
+      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
         'text': message,
         'text_time': now.toIso8601String(),
+        'text_from': user.uid, // 送信者のUID
       });
       
-      debugPrint('一時的なメッセージをlocationsに保存: $message');
+      debugPrint('一時的なメッセージを${widget.user.id}のlocationsに保存: $message');
     } catch (e) {
       debugPrint('一時的なメッセージの保存エラー: $e');
     }
@@ -702,12 +704,25 @@ class _MapProfileModalState extends State<MapProfileModal> {
                   final data = snapshot.data!.data() as Map<String, dynamic>?;
                   final text = data?['text'] as String?;
                   final textTimeStr = data?['text_time'] as String?;
+                  final textFrom = data?['text_from'] as String?;
                   
-                  // 1時間以内のメッセージのみ表示
+                  // 1時間以内のメッセージのみ表示、1時間経過したら自動削除
                   if (text != null && text.isNotEmpty && textTimeStr != null) {
                     final textTime = DateTime.parse(textTimeStr);
                     final now = DateTime.now();
                     final diff = now.difference(textTime);
+                    
+                    // 1時間経過していたら削除
+                    if (diff.inHours >= 1) {
+                      _clearExpiredMessage();
+                      return const Center(
+                        child: Text(
+                          'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      );
+                    }
                     
                     if (diff.inHours < 1) {
                       return Container(
@@ -730,9 +745,24 @@ class _MapProfileModalState extends State<MapProfileModal> {
                                 children: [
                                   Text(text),
                                   const SizedBox(height: 4),
-                                  Text(
-                                    '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
+                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      ),
+                                      if (textFrom != null)
+                                        FutureBuilder<String>(
+                                          future: _getUserName(textFrom),
+                                          builder: (context, nameSnap) {
+                                            return Text(
+                                              'from: ${nameSnap.data ?? 'Unknown'}',
+                                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                            );
+                                          },
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -764,5 +794,31 @@ class _MapProfileModalState extends State<MapProfileModal> {
         ),
       ),
     );
+  }
+
+  Future<void> _clearExpiredMessage() async {
+    try {
+      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
+        'text': '',
+        'text_time': null,
+        'text_from': null,
+      });
+      debugPrint('期限切れメッセージを削除しました');
+    } catch (e) {
+      debugPrint('期限切れメッセージの削除エラー: $e');
+    }
+  }
+
+  Future<String> _getUserName(String uid) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        return data['name'] ?? data['email'] ?? 'Unknown';
+      }
+    } catch (e) {
+      debugPrint('ユーザー名取得エラー: $e');
+    }
+    return 'Unknown';
   }
 }
