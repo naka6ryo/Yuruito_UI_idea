@@ -27,7 +27,6 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   final TextEditingController _controller = TextEditingController();
   final IntimacyCalculator _intimacyCalculator = IntimacyCalculator();
   int _intimacyLevel = 0;
-  bool _isLoading = true;
   bool _showStickerPicker = false;
 
   // スタンプオプション（親密度1）
@@ -59,13 +58,9 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
       final encounter = await _intimacyCalculator.getIntimacy(currentUserId, widget.targetUserId);
       setState(() {
         _intimacyLevel = encounter?.intimacyLevel ?? 0;
-        _isLoading = false;
       });
     } catch (e) {
       debugPrint('Error loading intimacy level: $e');
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
 
@@ -138,24 +133,25 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   String _getIntimacyLevelText() {
     switch (_intimacyLevel) {
       case 0:
-        return '親密度が足りません（レベル0）';
+        return '非表示';
       case 1:
-        return 'スタンプを送れます（レベル1）';
+        return '知り合いかも';
       case 2:
-        return '定型文を送れます（レベル2）';
+        return '顔見知り';
       case 3:
-        return '10文字まで送れます（レベル3）';
+        return '友達';
       case 4:
-        return '30文字まで送れます（レベル4）';
+        return '仲良し';
       default:
         return '不明な親密度レベル';
     }
   }
 
   Widget _buildMessageInput() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    return _buildIntimacyBasedInput();
+  }
+
+  Widget _buildIntimacyBasedInput() {
 
     switch (_intimacyLevel) {
       case 0:
@@ -185,6 +181,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text('スタンプを選んでください：', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             _buildInputRow(allowText: false),
             if (_showStickerPicker) const SizedBox(height: 8),
@@ -224,6 +221,26 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                 child: Text(message),
               ),
             ))),
+            const SizedBox(height: 8),
+            // スタンプボタンも表示（レベル1以上なので）
+            _buildInputRow(allowText: false),
+            if (_showStickerPicker) const SizedBox(height: 8),
+            if (_showStickerPicker)
+              Wrap(
+                spacing: 8,
+                children: _stickerOptions.map((sticker) => GestureDetector(
+                  onTap: () => _sendMessage(sticker, true),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.scaffoldBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.blue500),
+                    ),
+                    child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                  ),
+                )).toList(),
+              ),
           ],
         );
 
@@ -251,6 +268,22 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                   ),
                 )).toList(),
               ),
+            // 最大文字数に達した場合の警告表示
+            if (_controller.text.length >= maxLength)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '最大$maxLength文字までです',
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
+            Text(
+              '${_controller.text.length}/$maxLength文字',
+              style: TextStyle(
+                fontSize: 12,
+                color: _controller.text.length > maxLength ? Colors.red : Colors.grey,
+              ),
+            ),
           ],
         );
 

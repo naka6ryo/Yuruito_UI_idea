@@ -14,6 +14,7 @@ analyzer:
     - flutter/** # Embedded Flutter SDK directory (should not be analyzed as part of this app)
     - build/**
     - .dart_tool/**
+    - lib/dataconnect_generated/** # Generated files with errors
 
 linter:
   # The lint rules applied to this project can be customized in the

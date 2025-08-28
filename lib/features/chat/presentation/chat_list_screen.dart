@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../profile/presentation/other_user_profile_screen.dart';
 import 'chat_room_screen.dart';
-import '../../../data/repositories/firebase_user_repository.dart';
-import '../../../domain/entities/user.dart';
-import '../../../domain/entities/relationship.dart';
+import '../../../domain/services/chat_service.dart';
+import '../../../data/services/firebase_chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
 
 
@@ -16,7 +15,7 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-	late Future<List<UserEntity>> _future;
+	final ChatService _chatService = FirebaseChatService();
 
 	@override
 	void initState() {
@@ -32,111 +31,268 @@ class _ChatListScreenState extends State<ChatListScreen> {
 		await Future.delayed(const Duration(milliseconds: 300));
 		
 		setState(() {
-			_future = FirebaseUserRepository().fetchAcquaintances(); // excludes passingMaybe
+			// 画面を再構築してデータを再取得
 		});
 		
 		debugPrint('✅ チャット画面のデータ再取得完了');
 	}
 
-	@override
+		@override
 	Widget build(BuildContext context) {
-		return FutureBuilder<List<UserEntity>>(
-			future: _future,
+		final meId = FirebaseAuth.instance.currentUser?.uid;
+		if (meId == null) return const SizedBox();
+		
+		return StreamBuilder<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>>(
+			stream: _watchConversations(meId),
 			builder: (context, snap) {
-				final list = snap.data ?? [];
-				if (list.isEmpty) return const SizedBox();
-				final meId = FirebaseAuth.instance.currentUser?.uid;
-				if (meId == null) return const SizedBox();
-				return StreamBuilder<Map<String, int?>>(
-					stream: IntimacyCalculator().watchIntimacyMap(meId),
-					builder: (context, intimacySnap) {
-						final scores = intimacySnap.data ?? {};
-						return ListView.separated(
-							separatorBuilder: (context, index) => const Divider(height: 1),
-							itemCount: list.length,
-							itemBuilder: (context, i) {
-								              final u = list[i];
-              final level = scores[u.id] ?? 0;
-              final label = level == 1 ? '知り合いかも' : level == 2 ? '顔見知り' : level == 3 ? '友達' : level == 4 ? '仲良し' : '';
-              final color = _colorForRelationship(u.relationship);
-              return ListTile(
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: u.name, status: u.relationship.label, peerUid: u.id, conversationId: u.id))),
-                leading: CircleAvatar(radius: 24, backgroundImage: u.avatarUrl != null ? NetworkImage(u.avatarUrl!) : null, backgroundColor: color),
-                title: Row(children: [
-                  Text(u.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  if (label.isNotEmpty) Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: _buildIntimacyBadge(label, level),
-                  ),
-                ]),
-									subtitle: Text(u.bio, maxLines: 1, overflow: TextOverflow.ellipsis),
-									trailing: Text('', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-									onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: u))),
-								);
-							},
-						);
-					}
+				final conversations = snap.data ?? [];
+				if (conversations.isEmpty) {
+					return const Center(
+						child: Column(
+							mainAxisAlignment: MainAxisAlignment.center,
+							children: [
+								Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+								SizedBox(height: 16),
+								Text('まだ会話がありません', style: TextStyle(color: Colors.grey, fontSize: 16)),
+								SizedBox(height: 8),
+								Text('ホームやマップから友達にメッセージを送ってみましょう', style: TextStyle(color: Colors.grey, fontSize: 12)),
+								SizedBox(height: 16),
+								Text('💡 ヒント', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+								Text('• ホーム画面で友達をタップ', style: TextStyle(color: Colors.grey, fontSize: 11)),
+								Text('• マップで近くの友達をタップして一言メッセージ', style: TextStyle(color: Colors.grey, fontSize: 11)),
+								Text('• プロフィール画面からメッセージを送信', style: TextStyle(color: Colors.grey, fontSize: 11)),
+							],
+						),
+					);
+				}
+				
+				return RefreshIndicator(
+					onRefresh: () async {
+						setState(() {
+							// 画面を再構築してデータを再取得
+						});
+					},
+					child: ListView.separated(
+						separatorBuilder: (context, index) => const Divider(height: 1),
+						itemCount: conversations.length,
+						itemBuilder: (context, i) {
+							final conv = conversations[i];
+							return ListTile(
+								onTap: () async {
+									final peerUid = await _getPeerUidFromConversation(meId, conv.conversationId);
+									if (mounted) {
+										Navigator.of(context).push(
+											MaterialPageRoute(
+												builder: (_) => ChatRoomScreen(
+													name: conv.peerName,
+													status: '友達',
+													conversationId: conv.conversationId,
+													peerUid: peerUid,
+												),
+											),
+										);
+									}
+								},
+								leading: CircleAvatar(
+									radius: 24,
+									backgroundColor: Colors.blue,
+									child: Text(
+										conv.peerName.isNotEmpty ? conv.peerName[0].toUpperCase() : 'U',
+										style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+									),
+								),
+								title: Row(
+									children: [
+										Expanded(
+											child: Text(
+												conv.peerName,
+												style: const TextStyle(fontWeight: FontWeight.bold),
+												overflow: TextOverflow.ellipsis,
+											),
+										),
+										FutureBuilder<int?>(
+											future: _getIntimacyLevel(meId, conv.conversationId),
+											builder: (context, snap) {
+												final level = snap.data;
+												if (level != null && level > 0) {
+													return Container(
+														padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+														decoration: BoxDecoration(
+															color: _getIntimacyColor(level),
+															borderRadius: BorderRadius.circular(8),
+														),
+														child: Text(
+															_getIntimacyLabel(level),
+															style: const TextStyle(
+																color: Colors.white,
+																fontSize: 10,
+																fontWeight: FontWeight.bold,
+															),
+														),
+													);
+												}
+												return const SizedBox.shrink();
+											},
+										),
+										if (conv.unreadCount > 0)
+											Container(
+												padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+												decoration: BoxDecoration(
+													color: Colors.red,
+													borderRadius: BorderRadius.circular(12),
+												),
+												child: Text(
+													conv.unreadCount.toString(),
+													style: const TextStyle(
+														color: Colors.white,
+														fontSize: 12,
+														fontWeight: FontWeight.bold,
+													),
+												),
+											),
+									],
+								),
+								subtitle: Column(
+									crossAxisAlignment: CrossAxisAlignment.start,
+									children: [
+										Text(
+											conv.lastMessage.isNotEmpty ? conv.lastMessage : 'メッセージがありません',
+											maxLines: 1,
+											overflow: TextOverflow.ellipsis,
+											style: TextStyle(
+												color: conv.unreadCount > 0 ? Colors.black87 : Colors.grey,
+												fontWeight: conv.unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+											),
+										),
+										if (conv.updatedAt != null)
+											Text(
+												_formatTime(conv.updatedAt!),
+												style: const TextStyle(color: Colors.grey, fontSize: 12),
+											),
+									],
+								),
+							);
+						},
+					),
 				);
 			},
 		);
 	}
 
-		Color _colorForRelationship(Relationship r) {
-			switch (r) {
-				case Relationship.close:
-					return const Color(0xFFA78BFA);
-				case Relationship.friend:
-					return const Color(0xFF86EFAC);
-				case Relationship.acquaintance:
-					return const Color(0xFFFDBA74);
-				case Relationship.passingMaybe:
-					return const Color(0xFFF9A8D4);
-				default:
-					return Colors.indigo;
+	Stream<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>> _watchConversations(String userId) async* {
+		while (true) {
+			try {
+				debugPrint('🔄 チャットリスト更新中...');
+				final conversations = await _chatService.getConversations(userId);
+				debugPrint('📊 チャットリスト: ${conversations.length}件の会話を取得');
+				yield conversations;
+			} catch (e) {
+				debugPrint('❌ 会話リスト取得エラー: $e');
+				yield [];
 			}
+			// 3秒ごとに更新
+			await Future.delayed(const Duration(seconds: 3));
 		}
+	}
 
-		Widget _buildIntimacyBadge(String label, int level) {
-			Color badgeColor;
-			Color textColor;
+	String _formatTime(DateTime time) {
+		final now = DateTime.now();
+		final difference = now.difference(time);
+		
+		if (difference.inDays > 0) {
+			return '${difference.inDays}日前';
+		} else if (difference.inHours > 0) {
+			return '${difference.inHours}時間前';
+		} else if (difference.inMinutes > 0) {
+			return '${difference.inMinutes}分前';
+		} else {
+			return '今';
+		}
+	}
+
+	Future<int?> _getIntimacyLevel(String meId, String conversationId) async {
+		try {
+			// まず会話ドキュメントから親密度レベルを取得
+			final conversationDoc = await FirebaseFirestore.instance
+				.collection('conversations')
+				.doc(conversationId)
+				.get();
 			
-			switch (level) {
-				case 1:
-					badgeColor = Colors.blue.withValues(alpha: 0.2);
-					textColor = Colors.blue;
-					break;
-				case 2:
-					badgeColor = Colors.green.withValues(alpha: 0.2);
-					textColor = Colors.green;
-					break;
-				case 3:
-					badgeColor = Colors.orange.withValues(alpha: 0.2);
-					textColor = Colors.orange;
-					break;
-				case 4:
-					badgeColor = Colors.red.withValues(alpha: 0.2);
-					textColor = Colors.red;
-					break;
-				default:
-					badgeColor = Colors.grey.withValues(alpha: 0.2);
-					textColor = Colors.grey;
+			if (conversationDoc.exists) {
+				final data = conversationDoc.data();
+				final storedLevel = data?['intimacyLevel'] as int?;
+				if (storedLevel != null) {
+					return storedLevel;
+				}
 			}
-
-			return Container(
-				padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-				decoration: BoxDecoration(
-					color: badgeColor,
-					borderRadius: BorderRadius.circular(12),
-					border: Border.all(color: textColor, width: 1),
-				),
-				child: Text(
-					label,
-					style: TextStyle(
-						fontSize: 10,
-						color: textColor,
-						fontWeight: FontWeight.w500,
-					),
-				),
-			);
+			
+			// フォールバック: conversationIdから相手のIDを取得して計算
+			final parts = conversationId.split('_');
+			if (parts.length >= 2) {
+				final user1 = parts[0];
+				final user2 = parts[1];
+				final otherId = user1 == meId ? user2 : user1;
+				
+				if (otherId.isNotEmpty && otherId != meId) {
+					return await IntimacyCalculator().getIntimacyLevel(meId, otherId);
+				}
+			}
+		} catch (e) {
+			debugPrint('親密度レベル取得エラー: $e');
 		}
+		return null;
+	}
+
+	Future<String?> _getPeerUidFromConversation(String meId, String conversationId) async {
+		try {
+			// conversationIdから相手のIDを取得
+			final parts = conversationId.split('_');
+			if (parts.length >= 2) {
+				// 会話IDの形式: "user1_user2" または "user1_user2_user3_user4" など
+				// 最初の2つの部分が実際のユーザーID
+				final user1 = parts[0];
+				final user2 = parts[1];
+				
+				// 自分以外のIDを取得
+				final otherId = user1 == meId ? user2 : user1;
+				
+				if (otherId.isNotEmpty && otherId != meId) {
+					return otherId;
+				}
+			}
+		} catch (e) {
+			debugPrint('peerUid取得エラー: $e');
+		}
+		return null;
+	}
+
+	Color _getIntimacyColor(int level) {
+		switch (level) {
+			case 1:
+				return const Color(0xFFF9A8D4); // ピンク - 知り合いかも
+			case 2:
+				return const Color(0xFFFDBA74); // オレンジ - 顔見知り
+			case 3:
+				return const Color(0xFF86EFAC); // 緑 - 友達
+			case 4:
+				return const Color(0xFFA78BFA); // 紫 - 仲良し
+			default:
+				return Colors.grey;
+		}
+	}
+
+	String _getIntimacyLabel(int level) {
+		switch (level) {
+			case 1:
+				return '知り合いかも';
+			case 2:
+				return '顔見知り';
+			case 3:
+				return '友達';
+			case 4:
+				return '仲良し';
+			default:
+				return '非表示';
+		}
+	}
 }
