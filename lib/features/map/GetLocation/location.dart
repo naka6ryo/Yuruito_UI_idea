@@ -60,8 +60,13 @@ class LocationService {
 
   /// 他のユーザーの位置情報をリアルタイムで監視開始
   void startWatchingOtherUsersLocations() {
+    final currentUserId = _auth.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) {
+      debugPrint('認証されていないため位置情報監視を開始できません');
+      return;
+    }
+
     _firestore.collection('locations').snapshots().listen((snapshot) {
-      final currentUserId = _auth.currentUser?.uid;
       final Map<String, LatLng> locations = {};
 
       for (final doc in snapshot.docs) {
@@ -71,20 +76,32 @@ class LocationService {
         try {
           final data = doc.data();
           if (data.containsKey('location')) {
-            final GeoPoint? geoPoint = data['location'] as GeoPoint?;
-            if (geoPoint != null) {
-              locations[doc.id] = LatLng(geoPoint.latitude, geoPoint.longitude);
+            final locationData = data['location'];
+            if (locationData is GeoPoint) {
+              final geoPoint = locationData;
+              // 座標値のnullチェック
+              final lat = geoPoint.latitude;
+              final lng = geoPoint.longitude;
+              if (lat.isFinite && lng.isFinite) {
+                locations[doc.id] = LatLng(lat, lng);
+              }
             }
           }
         } catch (e) {
-          debugPrint('位置情報の解析エラー (${doc.id}): $e');
+          // エラーメッセージからnull値を除外
+          final docId = doc.id;
+          if (docId.isNotEmpty) {
+            debugPrint('位置情報の解析エラー ($docId): ${e.toString()}');
+          }
         }
       }
 
       otherUsersLocations.value = locations;
       debugPrint('他のユーザーの位置情報を更新: ${locations.length}人');
     }, onError: (error) {
-      debugPrint('他のユーザーの位置情報監視エラー: $error');
+      if (error != null) {
+        debugPrint('他のユーザーの位置情報監視エラー: ${error.toString()}');
+      }
     });
   }
 
@@ -179,30 +196,52 @@ class LocationService {
       } catch (_) {}
 
       // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
-      if (uid != null) {
+      if (uid != null && uid.isNotEmpty) {
         try {
-          if (uid.isNotEmpty) {
-            debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
-            debugPrint('保存先パス: locations/$uid');
-            
-            final geoPoint = GeoPoint(averageLat, averageLng);
-            final timestamp = DateTime.now().toIso8601String();
-            debugPrint('保存データ: location=GeoPoint(${geoPoint.latitude}, ${geoPoint.longitude}), updatedAt=$timestamp');
-            
-            await _firestore.collection('locations').doc(uid).set({
-              'location': geoPoint,
-              'updatedAt': timestamp,
-            }, SetOptions(merge: true));
-            
-            debugPrint('✅ Firestore保存成功: locations/$uid');
+          // 座標値の有効性をチェック
+          if (!averageLat.isFinite || !averageLng.isFinite) {
+            debugPrint('無効な座標値のため保存をスキップ: Lat=$averageLat, Lng=$averageLng');
+            return;
           }
+          
+          debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
+          debugPrint('保存先パス: locations/$uid');
+          
+          final geoPoint = GeoPoint(averageLat, averageLng);
+          final timestamp = DateTime.now().toIso8601String();
+          debugPrint('保存データ: location=GeoPoint(${geoPoint.latitude}, ${geoPoint.longitude}), updatedAt=$timestamp');
+          
+          await _firestore.collection('locations').doc(uid).set({
+            'location': geoPoint,
+            'updatedAt': timestamp,
+          }, SetOptions(merge: true));
+          
+          debugPrint('✅ Firestore保存成功: locations/$uid');
+          
+          // 成功メッセージ
+          debugPrint(
+            "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
+          );
         } catch (e) {
-          debugPrint('❌ Failed to write averaged location to Firestore: $e');
-          debugPrint('認証状態: ${_auth.currentUser != null ? "ログイン済み" : "未ログイン"}');
-          debugPrint('UID: ${_auth.currentUser?.uid}');
-          debugPrint('Email: ${_auth.currentUser?.email}');
+          // エラーメッセージからnull値を除外
+          final errorMsg = e.toString();
+          if (errorMsg.isNotEmpty) {
+            debugPrint('❌ Failed to write averaged location to Firestore: $errorMsg');
+          }
+          
+          final currentUser = _auth.currentUser;
+          if (currentUser != null) {
+            debugPrint('認証状態: ログイン済み');
+            final userUid = currentUser.uid;
+            final userEmail = currentUser.email;
+            if (userUid.isNotEmpty) debugPrint('UID: $userUid');
+            if (userEmail != null && userEmail.isNotEmpty) debugPrint('Email: $userEmail');
+          } else {
+            debugPrint('認証状態: 未ログイン');
+          }
+          
           debugPrint('エラー詳細: ${e.runtimeType}');
-          if (e.toString().contains('permission-denied')) {
+          if (errorMsg.contains('permission-denied')) {
             debugPrint('📝 解決方法: Firebase Console → Firestore → ルール で認証済みユーザーの書き込みを許可してください');
           }
           return; // エラー時は成功メッセージを出さない
@@ -210,11 +249,6 @@ class LocationService {
       } else {
         debugPrint('Skipping Firestore update because no authenticated user.');
         return; // 未認証時は成功メッセージを出さない
-      }
-      if (uid.isNotEmpty) {
-        debugPrint(
-          "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
-        );
       }
     } catch (e) {
       debugPrint("位置情報の取得または更新中にエラーが発生しました: ${e.toString()}");
