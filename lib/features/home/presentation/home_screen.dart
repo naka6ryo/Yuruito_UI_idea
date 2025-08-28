@@ -33,8 +33,22 @@ Relationship? _relationFilter; // プルダウンの選択値（今回はUIの�
 @override
 void initState() {
 super.initState();
-acquaintances = repo.fetchAcquaintances();
-newAcq = repo.fetchNewAcquaintances();
+// データを強制的に再取得
+_refreshData();
+}
+
+Future<void> _refreshData() async {
+  debugPrint('🔄 ホーム画面のデータを再取得中...');
+  
+  // 少し待機してからデータを再取得
+  await Future.delayed(const Duration(milliseconds: 300));
+  
+  setState(() {
+    acquaintances = repo.fetchAcquaintances();
+    newAcq = repo.fetchNewAcquaintances();
+  });
+  
+  debugPrint('✅ ホーム画面のデータ再取得完了');
 }
 
 

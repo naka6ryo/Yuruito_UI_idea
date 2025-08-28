@@ -97,8 +97,15 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			if (isNetwork) {
 				urlToSave = chosen;
 			} else {
-				// Firebase StorageにアップロードしてURLを取得
+				// Firebase Storageにアップロード
 				urlToSave = await _uploadToStorage(chosen);
+				if (urlToSave == null) {
+					// アップロードに失敗した場合はアセットパスを直接保存
+					urlToSave = chosen;
+					debugPrint('⚠️ アップロード失敗: アセットパスを直接保存: $chosen');
+				} else {
+					debugPrint('✅ Firebase Storageにアップロード成功: $urlToSave');
+				}
 			}
 
 			if (urlToSave != null) {
