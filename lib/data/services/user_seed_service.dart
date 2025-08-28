@@ -84,15 +84,45 @@ class UserSeedService {
     }
   }
 
-  /// テスト用ユーザーデータを削除
+  /// 指定ドキュメント配下の親密度・アンケートなど既知のサブコレクションを削除
+  Future<void> _deleteKnownSubcollections(String userId) async {
+    // questionnaires の全ドキュメント削除
+    try {
+      final qs = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('questionnaires')
+          .get();
+      for (final d in qs.docs) {
+        await d.reference.delete();
+      }
+    } catch (_) {}
+  }
+
+  /// テスト用ユーザーデータを削除（ID と 名前の両方から確実に）
   Future<void> removeTestUsers() async {
     try {
       final testUserIds = ['aoi_test', 'ren_test', 'yuki_test', 'saki_test'];
+      final testNames = ['Aoi', 'Ren', 'Yuki', 'Saki'];
 
+      // 1) ID で直接削除
       for (final userId in testUserIds) {
-        await _firestore.collection('users').doc(userId).delete();
-        await _firestore.collection('locations').doc(userId).delete();
+        await _deleteKnownSubcollections(userId);
+        await _firestore.collection('users').doc(userId).delete().catchError((_) {});
+        await _firestore.collection('locations').doc(userId).delete().catchError((_) {});
         debugPrint('🗑️ テストユーザー削除: $userId');
+      }
+
+      // 2) 名前一致で存在するテストユーザーも掃除（IDが異なる残骸対策）
+      for (final name in testNames) {
+        final snap = await _firestore.collection('users').where('name', isEqualTo: name).get();
+        for (final doc in snap.docs) {
+          final uid = doc.id;
+          await _deleteKnownSubcollections(uid);
+          await _firestore.collection('users').doc(uid).delete().catchError((_) {});
+          await _firestore.collection('locations').doc(uid).delete().catchError((_) {});
+          debugPrint('🗑️ テストユーザー削除(名前一致): $uid ($name)');
+        }
       }
 
       debugPrint('🧹 テストユーザーデータの削除完了');
