@@ -14,6 +14,9 @@ import '../../profile/presentation/my_profile_screen.dart';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'dart:math' as math;
+import '../../chat/widgets/intimacy_message_widget.dart';
+import '../../../domain/services/chat_service.dart';
+import '../../../data/services/firebase_chat_service.dart';
 
 /// MapScreen using Google Maps and showing all users from the repository (no filtering).
 class MapScreen extends StatefulWidget {
@@ -361,11 +364,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           // Do not show the small InfoWindow bubble. Open the full profile modal on first tap.
                           infoWindow: InfoWindow.noText,
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OtherUserProfileScreen(user: u),
-                              ),
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => MapProfileModal(user: u),
                             );
                           },
                         ),
@@ -468,5 +471,185 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       default:
         return 2;
     }
+  }
+}
+
+// Modal for map marker profile and DM input
+class MapProfileModal extends StatefulWidget {
+  final UserEntity user;
+  const MapProfileModal({super.key, required this.user});
+
+  @override
+  State<MapProfileModal> createState() => _MapProfileModalState();
+}
+
+class _MapProfileModalState extends State<MapProfileModal> {
+  final ChatService _chatService = FirebaseChatService();
+  final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> _messages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  String get _roomId => widget.user.id;
+
+  Future<void> _loadMessages() async {
+    try {
+      final loaded = await _chatService.loadMessages(_roomId);
+      setState(() {
+        _messages.clear();
+        _messages.addAll(loaded.map((m) => (
+          text: m.text,
+          sent: m.sent,
+          sticker: m.sticker,
+          from: m.from,
+          timestamp: DateTime.now()
+        )));
+        _isLoading = false;
+      });
+
+      // リアルタイムメッセージリスニング
+      _chatService.onMessage(_roomId).listen((m) {
+        if (mounted) {
+          setState(() {
+            _messages.add((
+              text: m.text,
+              sent: m.sent,
+              sticker: m.sticker,
+              from: m.from,
+              timestamp: DateTime.now()
+            ));
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading messages: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _sendMessage(String message, bool isSticker) async {
+    try {
+      await _chatService.sendMessage(_roomId, (
+        text: message,
+        sent: true,
+        sticker: isSticker,
+        from: 'me'
+      ));
+    } catch (e) {
+      debugPrint('Error sending message: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      builder: (ctx, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // ヘッダー部分
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.scaffoldBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: AppTheme.blue500,
+                    child: Text(
+                      widget.user.name.isNotEmpty ? widget.user.name[0] : '?',
+                      style: const TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.user.relationship.label, style: TextStyle(color: AppTheme.blue500)),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: widget.user)),
+                      );
+                    },
+                    child: const Text('プロフィールを見る'),
+                  ),
+                ],
+              ),
+            ),
+            
+            // メッセージリスト
+            Expanded(
+              child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'まだメッセージがありません\n下から送信してみてください',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: ctrl,
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final isMe = message.sent;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            children: [
+                              Container(
+                                constraints: BoxConstraints(
+                                  maxWidth: MediaQuery.of(context).size.width * 0.7,
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isMe ? AppTheme.blue500 : Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  message.text,
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white : Colors.black,
+                                    fontSize: message.sticker ? 24 : 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            
+            // 親密度ベースのメッセージ入力
+            IntimacyMessageWidget(
+              targetUserId: widget.user.id,
+              targetUserName: widget.user.name,
+              onSendMessage: _sendMessage,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
