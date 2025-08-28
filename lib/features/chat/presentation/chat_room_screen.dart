@@ -2,9 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/firebase_chat_service.dart';
+import '../widgets/intimacy_message_widget.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String name;
@@ -25,9 +25,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final ChatService _chatService = FirebaseChatService();
 
   final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> messages = [];
-  final ctrl = TextEditingController();
-
-  bool get stickerOnly => widget.status == '顔見知り';
+  // TextEditingControllerは削除（IntimacyMessageWidgetが独自に管理）
 
   @override
   void initState() {
@@ -170,104 +168,27 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_showStickerPanel)
-            Container(
-              color: Colors.grey[200],
-              padding: const EdgeInsets.all(12),
-              child: GridView.count(
-                crossAxisCount: 4,
-                shrinkWrap: true,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                children: _stickers
-                    .map((e) => InkWell(onTap: () => _sendSticker(e), child: Center(child: Text(e, style: const TextStyle(fontSize: 28)))))
-                    .toList(),
-              ),
-            ),
-          Container(
-            decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Color(0xFFE5E7EB)))),
-            padding: const EdgeInsets.all(8),
-            child: stickerOnly
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [const Text('スタンプで話そう！'), IconButton(onPressed: _toggleStickers, icon: const Icon(Icons.emoji_emotions_outlined))],
-                  )
-                : Row(
-                    children: [
-                      IconButton(onPressed: _toggleStickers, icon: const Icon(Icons.emoji_emotions_outlined)),
-                      Expanded(
-                        child: Stack(
-                          alignment: Alignment.centerRight,
-                          children: [
-                            TextField(
-                              controller: ctrl,
-                              maxLength: 30,
-                              decoration: InputDecoration(
-                                hintText: 'メッセージ...',
-                                filled: true,
-                                fillColor: AppTheme.scaffoldBg,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(999), borderSide: BorderSide.none),
-                                counterText: '',
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(right: 56),
-                              child: Text('${ctrl.text.length}/30', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _sendText,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(color: const Color(0xFF3B82F6), shape: BoxShape.circle),
-                          child: const Icon(Icons.send, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
+          // 親密度ベースのメッセージ入力に置き換え
+          IntimacyMessageWidget(
+            targetUserId: widget.peerUid ?? widget.name,
+            targetUserName: widget.name,
+            onSendMessage: (message, isSticker) async {
+              try {
+                final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
+                await _chatService.sendMessage(_roomId, msg);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('送信に失敗しました: $e')),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),
     );
   }
 
-  bool _showStickerPanel = false;
-  final _stickers = const ['😊', '👍', '😂', '🎉', '❤️', '🙏', '🤔', '👋'];
-
-  void _toggleStickers() => setState(() => _showStickerPanel = !_showStickerPanel);
-
-  void _sendText() async {
-    if (ctrl.text.trim().isEmpty) return;
-    final text = ctrl.text.trim();
-    ctrl.clear();
-    try {
-      final msg = (text: text, sent: true, sticker: false, from: 'Me');
-      await _chatService.sendMessage(_roomId, msg);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('送信に失敗しました: $e')),
-        );
-      }
-    }
-  }
-
-  void _sendSticker(String e) async {
-    _showStickerPanel = false;
-    try {
-      final msg = (text: e, sent: true, sticker: true, from: 'Me');
-      await _chatService.sendMessage(_roomId, msg);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('送信に失敗しました: $e')),
-        );
-      }
-    }
-  }
+  // 古いメッセージ送信メソッドは削除（IntimacyMessageWidgetが代替）
 }
