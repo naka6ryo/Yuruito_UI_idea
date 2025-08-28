@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../domain/services/chat_service.dart';
+import '../../features/map/ShinmituDo/intimacy_calculator.dart';
 
 class FirebaseChatService implements ChatService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final IntimacyCalculator _intimacyCalculator = IntimacyCalculator();
 
   String _pairConversationId(String uidA, String uidB) {
     final sorted = [uidA, uidB]..sort();
@@ -36,6 +38,11 @@ class FirebaseChatService implements ChatService {
   /// 指定の2ユーザーの会話ID（ドキュメントID）を返します。
   /// 既存が無ければ作成します。members は必ず UID をソートして保存します。
   Future<String> findOrCreateConversation(String myId, String otherId) async {
+    // 同じユーザー同士の場合はエラー
+    if (myId == otherId) {
+      throw Exception('自分自身との会話は作成できません');
+    }
+    
     final sortedMembers = [myId, otherId]..sort();
 
     // 既存会話の検索（members 完全一致）
@@ -44,6 +51,7 @@ class FirebaseChatService implements ChatService {
         .limit(1)
         .get();
     if (existing.docs.isNotEmpty) {
+      debugPrint('✅ 既存の会話を使用: ${existing.docs.first.id}');
       return existing.docs.first.id;
     }
 
@@ -54,7 +62,12 @@ class FirebaseChatService implements ChatService {
       'members': sortedMembers,
       'lastMessage': '',
       'updatedAt': FieldValue.serverTimestamp(),
+      'count_non_read': 0,
+      'done_read': [],
+      'haveRead': [],
+      'hasInteracted': false,
     });
+    debugPrint('✅ 新しい会話を作成: $cid');
     return ref.id;
   }
 
@@ -91,6 +104,15 @@ class FirebaseChatService implements ChatService {
     final parts = roomId.split('::');
     final me = parts.length > 1 ? parts[0] : currentUser.uid;
     final peer = parts.length > 1 ? parts[1] : roomId;
+    
+    // 親密度チェック
+    final intimacyLevel = await _intimacyCalculator.getIntimacyLevel(me, peer);
+    final canSendMessage = _canSendMessage(intimacyLevel ?? 0, message);
+    
+    if (!canSendMessage) {
+      throw Exception('親密度が足りません。レベル${intimacyLevel ?? 0}ではこのメッセージを送信できません。');
+    }
+    
     final convRef = await _ensureConversation(currentUid: me, peerUid: peer);
     final batch = _db.batch();
 
@@ -106,6 +128,31 @@ class FirebaseChatService implements ChatService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     await batch.commit();
+  }
+
+  /// 親密度レベルに基づいてメッセージ送信可能かチェック
+  bool _canSendMessage(int intimacyLevel, ({String text, bool sent, bool sticker, String from}) message) {
+    if (message.sticker) {
+      // スタンプはレベル1以上で送信可能
+      return intimacyLevel >= 1;
+    }
+    
+    final textLength = message.text.length;
+    
+    switch (intimacyLevel) {
+      case 0:
+        return false; // レベル0（非表示）では何も送信不可
+      case 1:
+        return textLength <= 0; // レベル1（知り合いかも）ではスタンプのみ
+      case 2:
+        return textLength <= 10; // レベル2（顔見知り）では10文字まで
+      case 3:
+        return textLength <= 30; // レベル3（友達）では30文字まで
+      case 4:
+        return textLength <= 100; // レベル4（仲良し）では100文字まで
+      default:
+        return false;
+    }
   }
 
   /// ステップ2: 会話IDを直接指定してメッセージ送信（WriteBatchでアトミックに実行）
@@ -227,20 +274,28 @@ class FirebaseChatService implements ChatService {
         
         // メッセージがある場合のみ追加
         if (messagesQuery.docs.isNotEmpty) {
-          // ユーザー情報を取得
-          final userDoc = await _db.collection('users').doc(peerId).get();
-          final userName = userDoc.data()?['name'] ?? 'Unknown User';
+          // 親密度レベルを取得
+          final intimacyLevel = await _intimacyCalculator.getIntimacyLevel(userId, peerId);
           
-          final conversation = (
-            conversationId: doc.id,
-            peerName: userName as String,
-            lastMessage: (data['lastMessage'] as String?) ?? '',
-            updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-            unreadCount: 0, // 一時的に0に設定
-          );
-          
-          result.add(conversation);
-          debugPrint('✅ 会話追加: ${conversation.peerName} (${conversation.conversationId})');
+          // 親密度レベル1以上の場合のみ表示（レベル0は非表示）
+          if ((intimacyLevel ?? 0) >= 1) {
+            // ユーザー情報を取得
+            final userDoc = await _db.collection('users').doc(peerId).get();
+            final userName = userDoc.data()?['name'] ?? 'Unknown User';
+            
+            final conversation = (
+              conversationId: doc.id,
+              peerName: userName as String,
+              lastMessage: (data['lastMessage'] as String?) ?? '',
+              updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+              unreadCount: 0, // 一時的に0に設定
+            );
+            
+            result.add(conversation);
+            debugPrint('✅ 会話追加: ${conversation.peerName} (${conversation.conversationId}) - 親密度レベル: ${intimacyLevel ?? 0}');
+          } else {
+            debugPrint('❌ 親密度不足: 会話 ${doc.id} をスキップ (レベル: ${intimacyLevel ?? 0})');
+          }
         } else {
           debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
         }
@@ -250,6 +305,7 @@ class FirebaseChatService implements ChatService {
     debugPrint('📊 最終結果: ${result.length}件の会話');
     return result;
   }
+
 }
 
 

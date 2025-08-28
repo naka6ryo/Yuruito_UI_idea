@@ -109,6 +109,30 @@ class _ChatListScreenState extends State<ChatListScreen> {
 												overflow: TextOverflow.ellipsis,
 											),
 										),
+										FutureBuilder<int?>(
+											future: _getIntimacyLevel(meId, conv.conversationId),
+											builder: (context, snap) {
+												final level = snap.data;
+												if (level != null && level > 0) {
+													return Container(
+														padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+														decoration: BoxDecoration(
+															color: _getIntimacyColor(level),
+															borderRadius: BorderRadius.circular(8),
+														),
+														child: Text(
+															_getIntimacyLabel(level),
+															style: const TextStyle(
+																color: Colors.white,
+																fontSize: 10,
+																fontWeight: FontWeight.bold,
+															),
+														),
+													);
+												}
+												return const SizedBox.shrink();
+											},
+										),
 										if (conv.unreadCount > 0)
 											Container(
 												padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -182,6 +206,59 @@ class _ChatListScreenState extends State<ChatListScreen> {
 			return '${difference.inMinutes}分前';
 		} else {
 			return '今';
+		}
+	}
+
+	Future<int?> _getIntimacyLevel(String meId, String conversationId) async {
+		try {
+			// conversationIdから相手のIDを取得
+			final parts = conversationId.split('_');
+			if (parts.length >= 2) {
+				// 会話IDの形式: "user1_user2" または "user1_user2_user3_user4" など
+				// 最初の2つの部分が実際のユーザーID
+				final user1 = parts[0];
+				final user2 = parts[1];
+				
+				// 自分以外のIDを取得
+				final otherId = user1 == meId ? user2 : user1;
+				
+				if (otherId.isNotEmpty && otherId != meId) {
+					return await IntimacyCalculator().getIntimacyLevel(meId, otherId);
+				}
+			}
+		} catch (e) {
+			debugPrint('親密度レベル取得エラー: $e');
+		}
+		return null;
+	}
+
+	Color _getIntimacyColor(int level) {
+		switch (level) {
+			case 1:
+				return const Color(0xFFF9A8D4); // ピンク - 知り合いかも
+			case 2:
+				return const Color(0xFFFDBA74); // オレンジ - 顔見知り
+			case 3:
+				return const Color(0xFF86EFAC); // 緑 - 友達
+			case 4:
+				return const Color(0xFFA78BFA); // 紫 - 仲良し
+			default:
+				return Colors.grey;
+		}
+	}
+
+	String _getIntimacyLabel(int level) {
+		switch (level) {
+			case 1:
+				return '知り合いかも';
+			case 2:
+				return '顔見知り';
+			case 3:
+				return '友達';
+			case 4:
+				return '仲良し';
+			default:
+				return '非表示';
 		}
 	}
 

@@ -138,15 +138,15 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   String _getIntimacyLevelText() {
     switch (_intimacyLevel) {
       case 0:
-        return '親密度が足りません（レベル0）';
+        return '非表示';
       case 1:
-        return 'スタンプを送れます（レベル1）';
+        return '知り合いかも';
       case 2:
-        return '定型文を送れます（レベル2）';
+        return '顔見知り';
       case 3:
-        return '10文字まで送れます（レベル3）';
+        return '友達';
       case 4:
-        return '30文字まで送れます（レベル4）';
+        return '仲良し';
       default:
         return '不明な親密度レベル';
     }
@@ -228,7 +228,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         );
 
       case 3:
-        final maxLength = 10;
+        final maxLength = 30;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -255,8 +255,8 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         );
 
       case 4:
-        // レベル4: 30文字制限のテキスト + スタンプ
-        const maxLength = 30;
+        // レベル4: 100文字制限のテキスト + スタンプ
+        const maxLength = 100;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
