@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
+import 'package:flutter/services.dart';
 
 class IntimacyMessageWidget extends StatefulWidget {
   final String targetUserId;
@@ -39,6 +40,10 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   @override
   void initState() {
     super.initState();
+    // 文字入力時に状態更新して警告を表示
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadIntimacyLevel();
   }
 
@@ -169,6 +174,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                   child: TextField(
                     controller: _controller,
                     maxLength: maxLength,
+                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)], // 最大文字数を制限
                     decoration: const InputDecoration(
                       hintText: 'メッセージを入力...',
                       counterText: '', // 文字数表示を非表示
@@ -187,6 +193,15 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                 ),
               ],
             ),
+            // 最大文字数に達した場合の警告表示
+            if (_controller.text.length >= maxLength)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '最大$maxLength文字までです',
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
             Text(
               '${_controller.text.length}/$maxLength文字',
               style: TextStyle(
