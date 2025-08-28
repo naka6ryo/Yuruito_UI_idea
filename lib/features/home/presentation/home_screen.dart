@@ -221,15 +221,17 @@ FutureBuilder(
 future: acquaintances,
 builder: (context, snap) {
 
-    void _debugCounts(List<UserEntity> xs) {
+    void debugCounts(List<UserEntity> xs) {
       final m = {for (final r in Relationship.values) r: 0};
-      for (final u in xs) m[u.relationship] = (m[u.relationship] ?? 0) + 1;
+      for (final u in xs) {
+        m[u.relationship] = (m[u.relationship] ?? 0) + 1;
+      }
       m.forEach((k, v) => debugPrint('[$k] $v'));
     }
 
     // ここに挿入（sortの前）
     final raw = (snap.data ?? <UserEntity>[]);
-_debugCounts(raw);
+debugCounts(raw);
 
 // まず none だけ除外
 var list = raw.where((u) => u.relationship != Relationship.none).toList();
