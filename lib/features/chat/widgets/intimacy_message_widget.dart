@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
 import 'package:flutter/services.dart';
+// 追加（相対パスはプロジェクト構成に合わせて調整）
+
+
 
 class IntimacyMessageWidget extends StatefulWidget {
   final String targetUserId;

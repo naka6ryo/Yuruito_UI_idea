@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
+import '../../chat/widgets/intimacy_message_widget.dart';
 
 class OtherUserProfileScreen extends StatelessWidget {
   final UserEntity user;
@@ -335,28 +336,6 @@ class OtherUserProfileScreen extends StatelessWidget {
                   ),
                 ],
 
-                const SizedBox(height: 12),
-
-                // マップで表示ボタン
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      // マップ画面に遷移して該当ユーザーを表示
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('マップで${user.name}の位置を表示します')));
-                    },
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('マップで表示'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.blue,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
