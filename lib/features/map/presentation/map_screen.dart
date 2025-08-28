@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:lottie/lottie.dart' as lottie;
 import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -538,15 +539,38 @@ class _MapScreenState extends State<MapScreen>
   Widget build(BuildContext context) {
     switch (_permissionStatus) {
       case PermissionStatus.checking:
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      case PermissionStatus.granted:
-        return buildMapWidget(context);
-      case PermissionStatus.denied:
+        // Show loading Lottie while we query permission and prepare map assets
         return Scaffold(
           body: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: lottie.Lottie.asset('assets/load.json', repeat: true),
+                ),
+                const SizedBox(height: 16),
+                const Text('地図を読み込んでいます...'),
+              ],
+            ),
+          ),
+        );
+      case PermissionStatus.granted:
+        return buildMapWidget(context);
+      case PermissionStatus.denied:
+        // Even when denied, show the same loading animation but request settings
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: lottie.Lottie.asset('assets/load.json', repeat: true),
+                ),
+                const SizedBox(height: 16),
                 const Text('地図を表示するには位置情報の許可が必要です。'),
                 const SizedBox(height: 16),
                 ElevatedButton(
