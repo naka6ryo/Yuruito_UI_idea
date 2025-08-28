@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
-import '../../chat/widgets/intimacy_message_widget.dart';
+import '../../chat/presentation/chat_room_screen.dart';
 
 class OtherUserProfileScreen extends StatefulWidget {
   final UserEntity user;
@@ -435,9 +435,17 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // チャット画面に遷移
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.user.name}とのチャットを開きます')));
-                      },
+                            Navigator.of(context).push(
+                               MaterialPageRoute(
+                                 builder: (_) => ChatRoomScreen(
+                                   name: widget.user.name,
+                                   status: widget.user.relationship.label,
+                                   peerUid: widget.user.id,
+                                   conversationId: widget.user.id, // 既存実装に合わせて同一IDを渡す
+                                 ),
+                             ),
+                             );
+                           },
                       icon: const Icon(Icons.chat_bubble_outline),
                       label: const Text('メッセージを送る'),
                       style: ElevatedButton.styleFrom(
