@@ -398,7 +398,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         const SizedBox(height: 24),
 
         // SNS連携（準備中）
-        _buildSectionHeader('SNS連携'),
+        /*_buildSectionHeader('SNS連携'),
         Card(
           color: Colors.white,
           elevation: 0,
@@ -424,7 +424,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ),
         const SizedBox(height: 24),
-
+*/
         // 危険な操作
         _buildSectionHeader('危険な操作'),
         Card(
