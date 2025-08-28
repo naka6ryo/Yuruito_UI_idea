@@ -159,6 +159,77 @@ class OtherUserProfileScreen extends StatelessWidget {
               const SizedBox(height: 16),
             ],
 
+            // プロフィール詳細情報
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'プロフィール情報',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  _buildProfileInfoCard(
+                    'つい頼んでしまう、好きな食べ物は？',
+                    user.name == 'Aoi' ? 'チーズケーキ' : 
+                    user.name == 'Ren' ? 'パスタ' :
+                    user.name == 'Yuki' ? 'お寿司' : 'ラーメン',
+                    Icons.restaurant,
+                    Colors.orange,
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  _buildProfileInfoCard(
+                    '最近、夢中になっている作品は？',
+                    user.name == 'Aoi' ? '海外ドラマの「フレンズ」' :
+                    user.name == 'Ren' ? 'アニメ「鬼滅の刃」' :
+                    user.name == 'Yuki' ? '映画「トップガン」' : '「君の名は。」',
+                    Icons.movie,
+                    Colors.purple,
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  _buildProfileInfoCard(
+                    'よく聴く、好きな音楽は？',
+                    user.name == 'Aoi' ? 'K-POP' :
+                    user.name == 'Ren' ? 'ジャズ' :
+                    user.name == 'Yuki' ? 'クラシック' : 'ロック',
+                    Icons.music_note,
+                    Colors.green,
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  _buildProfileInfoCard(
+                    'もし明日から寝なくても平気になったら、その時間をどう使う？',
+                    user.name == 'Aoi' ? 'ひたすら映画を観る' :
+                    user.name == 'Ren' ? '世界一周旅行をする' :
+                    user.name == 'Yuki' ? '楽器をマスターする' : '本を読み漁る',
+                    Icons.schedule,
+                    Colors.teal,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
             // アクションボタン
             if (user.relationship != Relationship.none) ...[
               Container(
@@ -287,5 +358,54 @@ class OtherUserProfileScreen extends StatelessWidget {
       case Relationship.none:
         return '未知';
     }
+  }
+
+  Widget _buildProfileInfoCard(String question, String answer, IconData icon, Color iconColor) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  question,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  answer,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

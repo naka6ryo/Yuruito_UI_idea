@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../settings/presentation/profile_settings_screen.dart';
+import '../../settings/presentation/privacy_settings_screen.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -199,6 +201,91 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // プロフィール詳細情報
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'プロフィール情報',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // 趣味
+                            _buildProfileInfoCard(
+                              'あなたを表す一言は？',
+                              _currentUser?.bio.isNotEmpty == true ? _currentUser!.bio : 'のんびり過ごしてます。',
+                              Icons.mood,
+                              Colors.blue,
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // 好きな食べ物
+                            _buildProfileInfoCard(
+                              'つい頼んでしまう、好きな食べ物は？',
+                              'ラーメン',
+                              Icons.restaurant,
+                              Colors.orange,
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // 趣味
+                            _buildProfileInfoCard(
+                              '最近、夢中になっている作品は？',
+                              '海外ドラマ「フレンズ」',
+                              Icons.movie,
+                              Colors.purple,
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // 好きな音楽
+                            _buildProfileInfoCard(
+                              'よく聴く、好きな音楽のジャンルは？',
+                              'インディーズロック',
+                              Icons.music_note,
+                              Colors.green,
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // 寿司ネタ
+                            _buildProfileInfoCard(
+                              'お寿司屋さんで、これだけは外せないネタは？',
+                              'サーモン',
+                              Icons.set_meal,
+                              Colors.red,
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            // 時間の使い方
+                            _buildProfileInfoCard(
+                              'もし明日から寝なくても平気になったら、その時間をどう使う？',
+                              '見たかった映画を全部見る',
+                              Icons.schedule,
+                              Colors.teal,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
                       // クイック設定
                       Container(
                         width: double.infinity,
@@ -235,7 +322,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                  MaterialPageRoute(builder: (_) => const ProfileSettingsScreen()),
                                 );
                               },
                             ),
@@ -248,7 +335,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                               onTap: () {
                                 Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                  MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
                                 );
                               },
                             ),
@@ -304,5 +391,54 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   String _formatDate(DateTime? date) {
     if (date == null) return '未設定';
     return '${date.year}年${date.month}月${date.day}日';
+  }
+
+  Widget _buildProfileInfoCard(String question, String answer, IconData icon, Color iconColor) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  question,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  answer,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
