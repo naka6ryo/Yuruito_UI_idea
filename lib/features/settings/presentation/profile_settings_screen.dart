@@ -202,8 +202,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           child: CircleAvatar(
             radius: 50,
             backgroundColor: Colors.grey[300],
-            backgroundImage: _profile['avatarUrl'] != null ? NetworkImage(_profile['avatarUrl']) : null,
-            child: _profile['avatarUrl'] == null ? Icon(Icons.person, size: 50, color: Colors.grey[600]) : null,
+            backgroundImage: (_profile['photoUrl'] ?? _profile['avatarUrl']) != null
+                ? NetworkImage((_profile['photoUrl'] ?? _profile['avatarUrl']) as String)
+                : null,
+            child: (_profile['photoUrl'] ?? _profile['avatarUrl']) == null
+                ? Icon(Icons.person, size: 50, color: Colors.grey[600])
+                : null,
           ),
         ),
         const SizedBox(height: 32),

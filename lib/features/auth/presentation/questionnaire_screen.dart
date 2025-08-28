@@ -5,13 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 
-
 class QuestionnaireScreen extends StatefulWidget {
-  const QuestionnaireScreen({super.key});
-  @override
-  State<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
-}
+	const QuestionnaireScreen({super.key});
 
+	@override
+	State<QuestionnaireScreen> createState() => _QuestionnaireScreenState();
+}
 
 class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 	final questions = <String>[
@@ -22,6 +21,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 		'よく聴く、好きな音楽のジャンルやアーティストは？',
 		'もし明日から寝なくても平気になったら、その時間をどう使う？',
 	];
+
 	int index = 0;
 	final answers = <int, String>{};
 	final ctrl = TextEditingController();
@@ -31,6 +31,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 		super.initState();
 		ctrl.text = answers[index] ?? '';
 	}
+
 
 	void _goto(int next) {
 		answers[index] = ctrl.text;
@@ -56,6 +57,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 					},
 					'updatedAt': DateTime.now().toIso8601String(),
 				};
+
 				final users = FirebaseFirestore.instance.collection('users');
 				await users.doc(uid).set(latestData, SetOptions(merge: true));
 
@@ -69,10 +71,28 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 					'how_do_you_use_the_time': answers[5] ?? '',
 					'createdAt': FieldValue.serverTimestamp(),
 				});
+
+				// Also record to a top-level profile_questionnaires collection for analytics/feeds
+				try {
+					final profileQuestionnaireRef = FirebaseFirestore.instance.collection('profile_questionnaires').doc();
+					await profileQuestionnaireRef.set({
+						'userId': uid,
+						'one_word': answers[0] ?? '',
+						'favorite_food': answers[1] ?? '',
+						'like_work': answers[2] ?? '',
+						'like_taste_sushi': answers[3] ?? '',
+						'like_music_genre': answers[4] ?? '',
+						'how_do_you_use_the_time': answers[5] ?? '',
+						'createdAt': FieldValue.serverTimestamp(),
+					});
+				} catch (_) {
+					// non-fatal if this write fails
+				}
 			}
 		} catch (e) {
 			// ignore write errors
 		}
+
 		if (!mounted) return;
 		Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
 	}
@@ -95,7 +115,9 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
 							children: [
 								BackButton(),
 								const SizedBox(width: 8),
-								const Expanded(child: Text('アンケート', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+								const Expanded(
+									child: Text('アンケート', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+								),
 							],
 						),
 						const SizedBox(height: 8),

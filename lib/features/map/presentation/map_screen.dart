@@ -278,9 +278,15 @@ class _MapScreenState extends State<MapScreen>
           _intimacyMap = intimacyMap;
           // 親密度の変更に応じてアイコンを再生成
           for (final userId in intimacyMap.keys) {
-            final user = _allUsers.firstWhere((u) => u.id == userId, orElse: () => UserEntity(id: '', name: ''));
+            final user = _allUsers.firstWhere(
+              (u) => u.id == userId,
+              orElse: () => UserEntity(id: '', name: ''),
+            );
             if (user.id.isNotEmpty) {
-              final newIcon = await _markerForUser(user, intimacyLevel: intimacyMap[userId]);
+              final newIcon = await _markerForUser(
+                user,
+                intimacyLevel: intimacyMap[userId],
+              );
               _userIcons[userId] = newIcon;
             }
           }
@@ -408,10 +414,9 @@ class _MapScreenState extends State<MapScreen>
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache['__me__'] = descriptor;
-      final double anchorY = (circleDiameter / 2) / height;
-      _userIconAnchors['__me__'] = Offset(0.5, anchorY);
+      _userIconAnchors['__me__'] = const Offset(0.5, 1.0);
       debugPrint(
-        'Generated me icon size=${width}x$height anchorY=$anchorY (circleCenter=${circleDiameter / 2})',
+        'Generated me icon size=${width}x$height anchorY=1.0 (circleCenter=${circleDiameter / 2})',
       );
       return descriptor;
     } catch (e) {
@@ -425,7 +430,10 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  Future<BitmapDescriptor> _markerForUser(UserEntity u, {int? intimacyLevel}) async {
+  Future<BitmapDescriptor> _markerForUser(
+    UserEntity u, {
+    int? intimacyLevel,
+  }) async {
     final cacheKey = '${u.id}_${intimacyLevel ?? 'default'}';
     if (_userIconCache.containsKey(cacheKey)) return _userIconCache[cacheKey]!;
     final color = _polylineColorForIntimacyLevel(intimacyLevel ?? 0);
@@ -453,24 +461,34 @@ class _MapScreenState extends State<MapScreen>
     final bubbleWidth = textWidth + bubblePadH * 2;
     final bubbleHeight = textHeight + bubblePadV * 2;
     final width = math.max(circleDiameter, bubbleWidth);
-    final height = circleDiameter + pointerHeight + bubbleHeight;
+
+    // 修正: 吹き出しを上に、アイコンを下に配置
+    final bubbleTop = 0.0;
+    final circleTop = bubbleHeight + pointerHeight;
+    final height = circleTop + circleDiameter;
+
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
+
+    // 吹き出しの描画
     final bubbleLeft = (width - bubbleWidth) / 2;
-    final bubbleTop = circleDiameter + pointerHeight;
     final bubbleRect = RRect.fromRectAndRadius(
       Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight),
       const Radius.circular(8),
     );
     final bubblePaint = Paint()..color = Colors.white;
     canvas.drawRRect(bubbleRect, bubblePaint);
+
+    // 吹き出しの先端（下向き）
     final tipCenterX = width / 2;
     final path = Path()
-      ..moveTo(tipCenterX - 8, bubbleTop)
-      ..lineTo(tipCenterX + 8, bubbleTop)
-      ..lineTo(tipCenterX, bubbleTop - pointerHeight)
+      ..moveTo(tipCenterX - 8, bubbleTop + bubbleHeight)
+      ..lineTo(tipCenterX + 8, bubbleTop + bubbleHeight)
+      ..lineTo(tipCenterX, bubbleTop + bubbleHeight + pointerHeight)
       ..close();
     canvas.drawPath(path, bubblePaint);
+
+    // 名前の描画
     final textStyleBlack = ui.TextStyle(
       color: Colors.black,
       fontSize: 14,
@@ -481,10 +499,12 @@ class _MapScreenState extends State<MapScreen>
       ..addText(text);
     final para = tb.build()
       ..layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
-    final textX = (width - para.width) / 2;
+    final textX = bubbleLeft + bubblePadH;
     final textY = bubbleTop + bubblePadV;
     canvas.drawParagraph(para, Offset(textX, textY));
-    final center = Offset(width / 2, circleDiameter / 2);
+
+    // アイコン（円）の描画
+    final center = Offset(width / 2, circleTop + circleDiameter / 2);
     final pinPaint = Paint()..color = color;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
     final border = Paint()
@@ -492,6 +512,7 @@ class _MapScreenState extends State<MapScreen>
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
+
     try {
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), height.toInt());
@@ -504,10 +525,10 @@ class _MapScreenState extends State<MapScreen>
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache[cacheKey] = descriptor;
-      final double anchorY = (circleDiameter / 2) / height;
-      _userIconAnchors[u.id] = Offset(0.5, anchorY);
+      // 修正: アンカーをアイコンの中心に設定
+      _userIconAnchors[u.id] = const Offset(0.5, 1.0);
       debugPrint(
-        'Generated icon for ${u.id} size=${width}x$height anchorY=$anchorY',
+        'Generated icon for ${u.id} size=${width}x$height anchorY=1.0 (bottom center)',
       );
       return descriptor;
     } catch (e) {
@@ -626,7 +647,7 @@ class _MapScreenState extends State<MapScreen>
                         icon: meIcon,
                         anchor:
                             _userIconAnchors['__me__'] ??
-                            const Offset(0.5, 0.34),
+                            const Offset(0.5, 1.0),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -906,7 +927,10 @@ class _MapProfileModalState extends State<MapProfileModal> {
                       backgroundColor: AppTheme.blue500,
                       child: Text(
                         widget.user.name.isNotEmpty ? widget.user.name[0] : '?',
-                        style: const TextStyle(color: Colors.white, fontSize: 20),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -928,7 +952,8 @@ class _MapProfileModalState extends State<MapProfileModal> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => OtherUserProfileScreen(user: widget.user),
+                            builder: (_) =>
+                                OtherUserProfileScreen(user: widget.user),
                           ),
                         );
                       },
@@ -942,12 +967,12 @@ class _MapProfileModalState extends State<MapProfileModal> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Center(
-                      child: lottie.Lottie.asset(
-                        'assets/load.json',
-                        width: 140,
-                        height: 140,
-                        fit: BoxFit.contain,
-                      ),
+                    child: lottie.Lottie.asset(
+                      'assets/load.json',
+                      width: 140,
+                      height: 140,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 )
               else if (_messages.isEmpty)
@@ -956,15 +981,23 @@ class _MapProfileModalState extends State<MapProfileModal> {
                 ..._messages.map((message) {
                   final isMe = message.sent;
                   return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
                     child: Row(
-                      mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      mainAxisAlignment: isMe
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
                       children: [
                         Container(
                           constraints: BoxConstraints(
                             maxWidth: MediaQuery.of(context).size.width * 0.7,
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: isMe ? AppTheme.blue500 : Colors.grey[200],
                             borderRadius: BorderRadius.circular(16),
@@ -980,18 +1013,25 @@ class _MapProfileModalState extends State<MapProfileModal> {
                               ),
                               const SizedBox(height: 4),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                   FutureBuilder<String>(
                                     future: _getUserName(message.from),
                                     builder: (context, nameSnap) {
                                       return Text(
                                         'from: ${nameSnap.data ?? 'Unknown'}',
-                                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
                                       );
                                     },
                                   ),
@@ -1045,8 +1085,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
       ),
     );
   }
-
-
 
   Future<String> _getUserName(String uid) async {
     try {
