@@ -24,6 +24,7 @@ class ChatRoomScreen extends StatefulWidget {
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // Firestore実装に差し替え
   final ChatService _chatService = FirebaseChatService();
+  final ScrollController _scrollController = ScrollController();
 
   final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> messages = [];
   // TextEditingControllerは削除（IntimacyMessageWidgetが独自に管理）
@@ -33,6 +34,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.initState();
     // Load initial messages via ChatService
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   String get _roomId => widget.conversationId ?? widget.name; // 常に conversationId を優先
@@ -98,6 +105,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         children: [
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(12),
               itemCount: messages.length,
               itemBuilder: (context, i) {
@@ -170,22 +178,32 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 親密度ベースのメッセージ入力に置き換え
-          IntimacyMessageWidget(
-            targetUserId: widget.peerUid ?? widget.name,
-            targetUserName: widget.name,
-            onSendMessage: (message, isSticker) async {
-              try {
-                final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
-                await _chatService.sendMessage(_roomId, msg);
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('送信に失敗しました: $e')),
-                  );
+                      IntimacyMessageWidget(
+              targetUserId: widget.peerUid ?? widget.name,
+              targetUserName: widget.name,
+              onSendMessage: (message, isSticker) async {
+                try {
+                  final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
+                  await _chatService.sendMessage(_roomId, msg);
+                  
+                  // 送信後、リストの下部にスクロール
+                  if (_scrollController.hasClients) {
+                    await Future.delayed(const Duration(milliseconds: 100));
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('送信に失敗しました: $e')),
+                    );
+                  }
                 }
-              }
-            },
-          ),
+              },
+            ),
         ],
       ),
     );

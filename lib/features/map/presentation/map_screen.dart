@@ -692,121 +692,132 @@ class _MapProfileModalState extends State<MapProfileModal> {
             
             // 一時的なメッセージリスト（1時間以内のもののみ表示）
             Expanded(
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('locations')
-                    .doc(widget.user.id)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: Text('読み込み中...'));
-                  }
-                  
-                  final data = snapshot.data!.data() as Map<String, dynamic>?;
-                  final text = data?['text'] as String?;
-                  final textTimeStr = data?['text_time'] as String?;
-                  final textFrom = data?['text_from'] as String?;
-                  
-                  // 1時間以内のメッセージのみ表示、1時間経過したら自動削除
-                  if (text != null && text.isNotEmpty && textTimeStr != null) {
-                    final textTime = DateTime.parse(textTimeStr);
-                    final now = DateTime.now();
-                    final diff = now.difference(textTime);
+              child: SingleChildScrollView(
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('locations')
+                      .doc(widget.user.id)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: Text('読み込み中...'));
+                    }
                     
-                    // 1時間経過していたら削除
-                    if (diff.inHours >= 1) {
-                      _clearExpiredMessage();
-                      return const Center(
+                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                    final text = data?['text'] as String?;
+                    final textTimeStr = data?['text_time'] as String?;
+                    final textFrom = data?['text_from'] as String?;
+                    
+                    // 1時間以内のメッセージのみ表示、1時間経過したら自動削除
+                    if (text != null && text.isNotEmpty && textTimeStr != null) {
+                      final textTime = DateTime.parse(textTimeStr);
+                      final now = DateTime.now();
+                      final diff = now.difference(textTime);
+                      
+                      // 1時間経過していたら削除
+                      if (diff.inHours >= 1) {
+                        _clearExpiredMessage();
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      if (diff.inHours < 1) {
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              const Text(
+                                '最近のメッセージ (1時間以内)',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(text),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        ),
+                                        if (textFrom != null)
+                                          FutureBuilder<String>(
+                                            future: _getUserName(textFrom),
+                                            builder: (context, nameSnap) {
+                                              return Text(
+                                                'from: ${nameSnap.data ?? 'Unknown'}',
+                                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    }
+                    
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
                         child: Text(
                           'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey),
                         ),
-                      );
-                    }
-                    
-                    if (diff.inHours < 1) {
-                      return Container(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            const Text(
-                              '最近のメッセージ (1時間以内)',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(text),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                      ),
-                                      if (textFrom != null)
-                                        FutureBuilder<String>(
-                                          future: _getUserName(textFrom),
-                                          builder: (context, nameSnap) {
-                                            return Text(
-                                              'from: ${nameSnap.data ?? 'Unknown'}',
-                                              style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                            );
-                                          },
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-                  }
-                  
-                  return const Center(
-                    child: Text(
-                      'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
             
             // 親密度ベースのメッセージ入力
-            IntimacyMessageWidget(
-              targetUserId: widget.user.id,
-              targetUserName: widget.user.name,
-              onSendMessage: (message, isSticker) async {
-                await _sendMessage(message, isSticker);
-                // 送信後、実際のDMに遷移
-                if (mounted) {
-                  Navigator.pop(context); // モーダルを閉じる
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChatRoomScreen(
-                        name: widget.user.name,
-                        status: widget.user.relationship.label,
-                        peerUid: widget.user.id,
-                        conversationId: widget.user.id,
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: IntimacyMessageWidget(
+                targetUserId: widget.user.id,
+                targetUserName: widget.user.name,
+                onSendMessage: (message, isSticker) async {
+                  await _sendMessage(message, isSticker);
+                  // 送信後、実際のDMに遷移
+                  if (mounted) {
+                    Navigator.pop(context); // モーダルを閉じる
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatRoomScreen(
+                          name: widget.user.name,
+                          status: widget.user.relationship.label,
+                          peerUid: widget.user.id,
+                          conversationId: widget.user.id,
+                        ),
                       ),
-                    ),
-                  );
-                }
-              },
+                    );
+                  }
+                },
+              ),
             ),
           ],
         ),
