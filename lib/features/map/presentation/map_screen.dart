@@ -5,7 +5,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../utils/google_maps_loader.dart';
 import '../state/map_controller.dart';
-
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
