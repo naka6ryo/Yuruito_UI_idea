@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,14 +24,14 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 
 	Future<bool> _persistSelection() async {
 		try {
-			final uid = FirebaseAuth.instance.currentUser?.uid;
-			if (uid == null) return false;
-			final users = FirebaseFirestore.instance.collection('users');
-			await users.doc(uid).set({'icon': selected ?? ''}, SetOptions(merge: true));
-			return true;
-		} catch (_) {
-			return false;
-		}
+				final uid = FirebaseAuth.instance.currentUser?.uid;
+				if (uid == null) return false;
+				final users = FirebaseFirestore.instance.collection('users');
+				await users.doc(uid).set({'icon': selected ?? ''}, SetOptions(merge: true));
+				return true;
+			} catch (_) {
+				return false;
+			}
 	}
 
 	@override
