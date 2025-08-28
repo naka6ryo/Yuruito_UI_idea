@@ -255,47 +255,17 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildProfileInfoCard(
-                      'あなたを表す一言は？',
-                      _latestAnswers?['q1'] ?? 'のんびり過ごしてます。',
-                      Icons.mood,
-                      Colors.blue,
-                    ),
+                    _buildProfileInfoCard('あなたを表す一言は？', _latestAnswers?['q1'] ?? 'のんびり過ごしてます。', Icons.mood, Colors.blue),
                     const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'つい頼んでしまう、好きな食べ物は？',
-                      _latestAnswers?['q2'] ?? 'ラーメン',
-                      Icons.restaurant,
-                      Colors.orange,
-                    ),
+                    _buildProfileInfoCard('つい頼んでしまう、好きな食べ物は？', _latestAnswers?['q2'] ?? 'ラーメン', Icons.restaurant, Colors.orange),
                     const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      '最近、夢中になっている作品は？',
-                      _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」',
-                      Icons.movie,
-                      Colors.purple,
-                    ),
+                    _buildProfileInfoCard('最近、夢中になっている作品は？', _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」', Icons.movie, Colors.purple),
                     const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'よく聴く、好きな音楽のジャンルは？',
-                      _latestAnswers?['q5'] ?? 'インディーズロック',
-                      Icons.music_note,
-                      Colors.green,
-                    ),
+                    _buildProfileInfoCard('よく聴く、好きな音楽のジャンルは？', _latestAnswers?['q5'] ?? 'インディーズロック', Icons.music_note, Colors.green),
                     const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'お寿司屋さんで、これだけは外せないネタは？',
-                      _latestAnswers?['q4'] ?? 'サーモン',
-                      Icons.set_meal,
-                      Colors.red,
-                    ),
+                    _buildProfileInfoCard('お寿司屋さんで、これだけは外せないネタは？', _latestAnswers?['q4'] ?? 'サーモン', Icons.set_meal, Colors.red),
                     const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'もし明日から寝なくても平気になったら、その時間をどう使う？',
-                      _latestAnswers?['q6'] ?? '見たかった映画を全部見る',
-                      Icons.schedule,
-                      Colors.teal,
-                    ),
+                    _buildProfileInfoCard('もし明日から寝なくても平気になったら、その時間をどう使う？', _latestAnswers?['q6'] ?? '見たかった映画を全部見る', Icons.schedule, Colors.teal),
                   ],
                 ),
               ),
@@ -328,7 +298,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.edit, color: Colors.blue),
@@ -341,7 +310,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         );
                       },
                     ),
-
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.privacy_tip, color: Colors.orange),
@@ -354,7 +322,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         );
                       },
                     ),
-
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.settings, color: Colors.grey),
@@ -404,10 +371,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return '未設定';
-    return '${date.year}年${date.month}月${date.day}日';
-  }
 
   Widget _buildProfileInfoCard(String question, String answer, IconData icon, Color iconColor) {
     return Container(

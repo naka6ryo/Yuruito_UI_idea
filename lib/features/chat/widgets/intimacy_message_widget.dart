@@ -320,7 +320,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
             _getIntimacyLevelText(),
             style: TextStyle(color: AppTheme.blue500, fontSize: 14),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           _buildMessageInput(),
         ],
       ),

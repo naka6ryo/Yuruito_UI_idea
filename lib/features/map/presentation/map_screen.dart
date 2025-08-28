@@ -913,7 +913,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
           children: [
             // ヘッダー部分
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               decoration: BoxDecoration(
                 color: AppTheme.scaffoldBg,
                 borderRadius: const BorderRadius.vertical(
@@ -929,7 +929,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                       IconButton(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close),
-                        color: Colors.grey[600],
+                        color: const Color.fromARGB(255, 107, 184, 235),
                       ),
                     ],
                   ),
@@ -953,7 +953,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     widget.user.relationship.label,
                     style: TextStyle(color: AppTheme.blue500),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   OutlinedButton(
                     onPressed: () {
                       Navigator.pop(context);
@@ -971,98 +971,10 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
             ),
 
-            // メッセージリスト
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_messages.isEmpty
-                        ? const SizedBox.shrink()
-                        : ListView.builder(
-                            controller: ctrl,
-                            itemCount: _messages.length,
-                            itemBuilder: (context, index) {
-                              final message = _messages[index];
-                              final isMe = message.sent;
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 4,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: isMe
-                                      ? MainAxisAlignment.end
-                                      : MainAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      constraints: BoxConstraints(
-                                        maxWidth:
-                                            MediaQuery.of(context).size.width *
-                                            0.7,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isMe
-                                            ? AppTheme.blue500
-                                            : Colors.grey[200],
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            message.text,
-                                            style: TextStyle(
-                                              color: isMe
-                                                  ? Colors.white
-                                                  : Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              FutureBuilder<String>(
-                                                future: _getUserName(
-                                                  message.from,
-                                                ),
-                                                builder: (context, nameSnap) {
-                                                  return Text(
-                                                    'from: ${nameSnap.data ?? 'Unknown'}',
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          )),
-            ),
-
             // 親密度ベースのメッセージ入力
             Container(
-              padding: const EdgeInsets.all(16),
-              constraints: const BoxConstraints(maxHeight: 200),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              constraints: const BoxConstraints(maxHeight: 310),
               child: SingleChildScrollView(
                 child: IntimacyMessageWidget(
                   targetUserId: widget.user.id,
