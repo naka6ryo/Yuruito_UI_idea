@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 /// テスト用のユーザーデータをFirestoreに追加するサービス
 class UserSeedService {
@@ -74,12 +75,12 @@ class UserSeedService {
           'updatedAt': DateTime.now().toIso8601String(),
         }, SetOptions(merge: true));
 
-        print('✅ テストユーザー追加: ${userData['name']} (${userData['id']})');
+        debugPrint('✅ テストユーザー追加: ${userData['name']} (${userData['id']})');
       }
 
-      print('🎉 テストユーザーデータの追加完了');
+      debugPrint('🎉 テストユーザーデータの追加完了');
     } catch (e) {
-      print('❌ テストユーザーデータの追加エラー: $e');
+      debugPrint('❌ テストユーザーデータの追加エラー: $e');
     }
   }
 
@@ -91,42 +92,42 @@ class UserSeedService {
       for (final userId in testUserIds) {
         await _firestore.collection('users').doc(userId).delete();
         await _firestore.collection('locations').doc(userId).delete();
-        print('🗑️ テストユーザー削除: $userId');
+        debugPrint('🗑️ テストユーザー削除: $userId');
       }
 
-      print('🧹 テストユーザーデータの削除完了');
+      debugPrint('🧹 テストユーザーデータの削除完了');
     } catch (e) {
-      print('❌ テストユーザーデータの削除エラー: $e');
+      debugPrint('❌ テストユーザーデータの削除エラー: $e');
     }
   }
 
   /// Firestoreの全ユーザーとlocationsを確認
   Future<void> debugFirestoreData() async {
     try {
-      print('=== Firestore データデバッグ ===');
+      debugPrint('=== Firestore データデバッグ ===');
       
       // ユーザーデータを確認
       final usersSnapshot = await _firestore.collection('users').get();
-      print('📋 ユーザー数: ${usersSnapshot.docs.length}');
+      debugPrint('📋 ユーザー数: ${usersSnapshot.docs.length}');
       for (final doc in usersSnapshot.docs) {
         final data = doc.data();
-        print('👤 ユーザー: ${doc.id} - ${data['name']} (${data['email']})');
+        debugPrint('👤 ユーザー: ${doc.id} - ${data['name']} (${data['email']})');
       }
 
       // 位置情報データを確認
       final locationsSnapshot = await _firestore.collection('locations').get();
-      print('📍 位置情報数: ${locationsSnapshot.docs.length}');
+      debugPrint('📍 位置情報数: ${locationsSnapshot.docs.length}');
       for (final doc in locationsSnapshot.docs) {
         final data = doc.data();
         final geoPoint = data['location'] as GeoPoint?;
         if (geoPoint != null) {
-          print('📍 位置情報: ${doc.id} - Lat: ${geoPoint.latitude}, Lng: ${geoPoint.longitude}');
+          debugPrint('📍 位置情報: ${doc.id} - Lat: ${geoPoint.latitude}, Lng: ${geoPoint.longitude}');
         }
       }
 
-      print('=== デバッグ完了 ===');
+      debugPrint('=== デバッグ完了 ===');
     } catch (e) {
-      print('❌ Firestoreデータデバッグエラー: $e');
+      debugPrint('❌ Firestoreデータデバッグエラー: $e');
     }
   }
 }

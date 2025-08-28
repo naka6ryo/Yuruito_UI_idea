@@ -36,7 +36,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 						final u = list[i];
 						final color = _colorForRelationship(u.relationship);
 						return ListTile(
-							onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: u.name, status: u.relationship.label))),
+							onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: u.name, status: u.relationship.label, peerUid: u.id))),
 							leading: CircleAvatar(radius: 24, backgroundImage: u.avatarUrl != null ? NetworkImage(u.avatarUrl!) : null, backgroundColor: color),
 							title: Row(children: [Text(u.name, style: const TextStyle(fontWeight: FontWeight.bold)), const SizedBox(width: 8), _badge(u.relationship.label)]),
 							subtitle: Text(u.bio, maxLines: 1, overflow: TextOverflow.ellipsis),
