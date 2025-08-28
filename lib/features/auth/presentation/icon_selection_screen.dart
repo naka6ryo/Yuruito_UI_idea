@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/router/app_routes.dart';
@@ -19,7 +21,33 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 	@override
 	void initState() {
 		super.initState();
-		// keep icons empty so UI falls back to emoji fallback; a later enhancement can load real assets
+		// Try to load packaged asset icons so users can pick from lib/images/select_icon/
+		// If none are found, fall back to the older lib/images/icon/ or emoji fallback.
+		_loadIconsFromAssets();
+	}
+
+	Future<void> _loadIconsFromAssets() async {
+		try {
+			final manifestContent = await rootBundle.loadString('AssetManifest.json');
+			final Map<String, dynamic> manifestMap = json.decode(manifestContent) as Map<String, dynamic>;
+			// prefer packaged selection icons
+			final selectKeys = manifestMap.keys.where((k) => k.startsWith('lib/images/select_icon/')).toList();
+			if (selectKeys.isNotEmpty) {
+				setState(() {
+					icons = selectKeys.toList();
+				});
+				return;
+			}
+			// fallback to the icon/ folder if present
+			final altKeys = manifestMap.keys.where((k) => k.startsWith('lib/images/icon/')).toList();
+			if (altKeys.isNotEmpty) {
+				setState(() {
+					icons = altKeys.toList();
+				});
+			}
+		} catch (_) {
+			// ignore and let UI show emoji fallback
+		}
 	}
 
 	Future<bool> _persistSelection() async {
