@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../utils/google_maps_loader.dart';
 import '../state/map_controller.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
@@ -19,6 +20,7 @@ import 'dart:math' as math;
 import '../../chat/widgets/intimacy_message_widget.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/firebase_chat_service.dart';
+import '../../chat/presentation/chat_room_screen.dart';
 
 /// MapScreen using Google Maps and showing all users from the repository (no filtering).
 class MapScreen extends StatefulWidget {
@@ -478,14 +480,82 @@ class _MapScreenState extends State<MapScreen>
                       ? IntimacyCalculator().watchIntimacyMap(meId)
                       : Stream<Map<String, int?>>.value({});
 
-                  return StreamBuilder<Map<String, int?>>(
-                    stream: intimacyStream,
-                    builder: (context, intimacySnap) {
-                      final intimacyMap = intimacySnap.data ?? {};
+feature/profile
+                  return StreamBuilder<Map<String, int?>>(stream: intimacyStream, builder: (context, intimacySnap) {
+                    final intimacyMap = intimacySnap.data ?? {};
 
-                      final markers = <Marker>{};
-                      final Set<Circle> circles = {};
-                      final Set<Polyline> polylines = {};
+                    final markers = <Marker>{};
+                    final Set<Circle> circles = {};
+                    final Set<Polyline> polylines = {};
+
+                    if (myAveragedLocation != null) {
+                      final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
+                      markers.add(Marker(
+                        markerId: const MarkerId('me'),
+                        position: myAveragedLocation,
+                        icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                        anchor: Offset(meAnchor.dx, meAnchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
+                        },
+                      ));
+
+                      circles.add(Circle(
+                        circleId: const CircleId('me_circle'),
+                        center: myAveragedLocation,
+                        radius: 50,
+                        fillColor: const Color(0x553B82F6),
+                        strokeColor: const Color(0xFF3B82F6),
+                        strokeWidth: 2,
+                      ));
+                    }
+
+                    for (final u in users) {
+                      if (u.lat == null || u.lng == null) continue;
+                      final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
+                      // Use the computed anchor if available, otherwise bottom-center.
+                      // Render marker
+                      markers.add(Marker(
+                        markerId: MarkerId(u.id),
+                        position: LatLng(u.lat!, u.lng!),
+                        icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                        anchor: Offset(anchor.dx, anchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => MapProfileModal(user: u),
+                          );
+                        },
+                      ));
+
+                      // Render intimacy circle based on server value (level 0..4)
+                      final int? intimacyLevel = intimacyMap[u.id];
+                      if (intimacyLevel == 0) {
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 30,
+                          fillColor: const Color(0x80FFFFFF),
+                          strokeColor: const Color(0x80FFFFFF),
+                          strokeWidth: 1,
+                        ));
+                      } else if (intimacyLevel != null && intimacyLevel > 0) {
+                        final Color lvlColor = _colorForIntimacyLevel(intimacyLevel);
+                        final int stroke = _circleStrokeWidthForLevel(intimacyLevel);
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 40,
+                          fillColor: lvlColor.withValues(alpha: 0.18),
+                          strokeColor: lvlColor,
+                          strokeWidth: stroke,
+                        ));
+                      }
+
 
                       if (myAveragedLocation != null) {
                         final Offset meAnchor =
@@ -809,19 +879,16 @@ class MapProfileModal extends StatefulWidget {
 
 class _MapProfileModalState extends State<MapProfileModal> {
   final ChatService _chatService = FirebaseChatService();
-  final List<
-    ({String text, bool sent, bool sticker, String from, DateTime? timestamp})
-  >
-  _messages = [];
-  bool _isLoading = true;
+
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    // Mapプロフィールからは過去のメッセージを読み込まない
   }
 
   String get _roomId => widget.user.id;
+
 
   Future<void> _loadMessages() async {
     try {
@@ -864,24 +931,48 @@ class _MapProfileModalState extends State<MapProfileModal> {
     }
   }
 
+
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
+      // 1. 通常のDMに送信
       await _chatService.sendMessage(_roomId, (
         text: message,
         sent: true,
         sticker: isSticker,
         from: 'me',
       ));
+      
+      // 2. Firebaseのlocationsコレクションにも一時的に保存（1時間で消える）
+      await _saveTemporaryMapMessage(message);
     } catch (e) {
       debugPrint('Error sending message: $e');
+    }
+  }
+
+  Future<void> _saveTemporaryMapMessage(String message) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      final now = DateTime.now();
+      // 対象ユーザーのlocationsドキュメントに送信者の情報とともに保存
+      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
+        'text': message,
+        'text_time': now.toIso8601String(),
+        'text_from': user.uid, // 送信者のUID
+      });
+      
+      debugPrint('一時的なメッセージを${widget.user.id}のlocationsに保存: $message');
+    } catch (e) {
+      debugPrint('一時的なメッセージの保存エラー: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      maxChildSize: 0.9,
+      initialChildSize: 0.6,
+      maxChildSize: 0.8,
       minChildSize: 0.3,
       builder: (ctx, ctrl) => Container(
         decoration: const BoxDecoration(
@@ -950,6 +1041,9 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
             ),
 
+            
+
+
             // メッセージリスト
             Expanded(
               child: _isLoading
@@ -977,8 +1071,15 @@ class _MapProfileModalState extends State<MapProfileModal> {
                             mainAxisAlignment: isMe
                                 ? MainAxisAlignment.end
                                 : MainAxisAlignment.start,
+
                             children: [
+                              const Text(
+                                '最近のメッセージ (1時間以内)',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 8),
                               Container(
+
                                 constraints: BoxConstraints(
                                   maxWidth:
                                       MediaQuery.of(context).size.width * 0.7,
@@ -992,31 +1093,116 @@ class _MapProfileModalState extends State<MapProfileModal> {
                                       ? AppTheme.blue500
                                       : Colors.grey[200],
                                   borderRadius: BorderRadius.circular(16),
+
                                 ),
-                                child: Text(
-                                  message.text,
-                                  style: TextStyle(
-                                    color: isMe ? Colors.white : Colors.black,
-                                    fontSize: message.sticker ? 24 : 14,
-                                  ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(text),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                        ),
+                                        if (textFrom != null)
+                                          FutureBuilder<String>(
+                                            future: _getUserName(textFrom),
+                                            builder: (context, nameSnap) {
+                                              return Text(
+                                                'from: ${nameSnap.data ?? 'Unknown'}',
+                                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                              );
+                                            },
+                                          ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         );
-                      },
-                    ),
+                      }
+                    }
+                    
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
             ),
 
             // 親密度ベースのメッセージ入力
-            IntimacyMessageWidget(
-              targetUserId: widget.user.id,
-              targetUserName: widget.user.name,
-              onSendMessage: _sendMessage,
+            Container(
+              padding: const EdgeInsets.all(16),
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: IntimacyMessageWidget(
+                targetUserId: widget.user.id,
+                targetUserName: widget.user.name,
+                onSendMessage: (message, isSticker) async {
+                  await _sendMessage(message, isSticker);
+                  // 送信後、実際のDMに遷移
+                  if (mounted) {
+                    Navigator.pop(context); // モーダルを閉じる
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatRoomScreen(
+                          name: widget.user.name,
+                          status: widget.user.relationship.label,
+                          peerUid: widget.user.id,
+                          conversationId: widget.user.id,
+                          initialMessage: message,
+                          initialIsSticker: isSticker,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                ),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _clearExpiredMessage() async {
+    try {
+      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
+        'text': '',
+        'text_time': null,
+        'text_from': null,
+      });
+      debugPrint('期限切れメッセージを削除しました');
+    } catch (e) {
+      debugPrint('期限切れメッセージの削除エラー: $e');
+    }
+  }
+
+  Future<String> _getUserName(String uid) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        return data['name'] ?? data['email'] ?? 'Unknown';
+      }
+    } catch (e) {
+      debugPrint('ユーザー名取得エラー: $e');
+    }
+    return 'Unknown';
   }
 }

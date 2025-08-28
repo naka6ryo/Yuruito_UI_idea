@@ -213,9 +213,15 @@ class LocationService {
           await _firestore.collection('locations').doc(uid).set({
             'location': geoPoint,
             'updatedAt': timestamp,
+            'text': '', // 一時的なメッセージ用
+            'text_time': null, // メッセージ送信時刻用
+            'text_from': null, // メッセージ送信者UID用
           }, SetOptions(merge: true));
 
           debugPrint('✅ Firestore保存成功: locations/$uid');
+          
+          // 定期的に期限切れメッセージをクリーンアップ
+          _cleanupExpiredMessages();
           // [mainの改善点] どの座標が保存されたか、より詳細な成功ログを出力
           debugPrint(
             "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
@@ -285,6 +291,36 @@ class LocationService {
       // ★★★ ここまで ★★★
     } catch (e) {
       debugPrint("位置情報の取得または更新中にエラーが発生しました: ${e.toString()}");
+    }
+  }
+
+  /// 1時間以上経過した一時的メッセージを削除
+  Future<void> _cleanupExpiredMessages() async {
+    try {
+      final snapshot = await _firestore.collection('locations').get();
+      final now = DateTime.now();
+      
+      for (final doc in snapshot.docs) {
+        final data = doc.data();
+        final textTimeStr = data['text_time'] as String?;
+        
+        if (textTimeStr != null) {
+          final textTime = DateTime.parse(textTimeStr);
+          final diff = now.difference(textTime);
+          
+          // 1時間経過していたら削除
+          if (diff.inHours >= 1) {
+            await doc.reference.update({
+              'text': '',
+              'text_time': null,
+              'text_from': null,
+            });
+            debugPrint('期限切れメッセージを削除: ${doc.id}');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('期限切れメッセージのクリーンアップエラー: $e');
     }
   }
 }
