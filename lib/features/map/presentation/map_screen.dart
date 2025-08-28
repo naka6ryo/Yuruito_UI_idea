@@ -707,8 +707,8 @@ class _MapScreenState extends State<MapScreen>
                         zoomControlsEnabled: false, // ＋−のズームボタンを消す
                         compassEnabled: false, // コンパスを消す
                         mapToolbarEnabled: false, // 経路ボタンなどのツールバーを消す
-                        zoomGesturesEnabled: false, // ピンチズーム無効
-                        scrollGesturesEnabled: false, // スクロール無効
+                        zoomGesturesEnabled: true, // ピンチズーム有効
+                        scrollGesturesEnabled: true, // スクロール有効
                         rotateGesturesEnabled: false, // 回転無効
                         tiltGesturesEnabled: false, // 傾き無効
                         onMapCreated: (controller) {
