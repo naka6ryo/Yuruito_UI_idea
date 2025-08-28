@@ -9,11 +9,13 @@ class FirebaseUserRepository implements UserRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  @override
+  @override 
   Future<List<UserEntity>> fetchAcquaintances() async {
     final users = await fetchAllUsers();
-    return users.where((u) => u.relationship != Relationship.passingMaybe).toList();
+    // none だけ除外して、passingMaybe も含める
+    return users.where((u) => u.relationship != Relationship.none).toList();
   }
+
 
   @override
   Future<List<UserEntity>> fetchNewAcquaintances() async {
@@ -50,6 +52,7 @@ class FirebaseUserRepository implements UserRepository {
         relationship: _stringToRelationship(userData['relationship'] ?? 'none'),
         lat: lat,
         lng: lng,
+      
       );
     } catch (e) {
       debugPrint('Error fetching user by ID $id: $e');
