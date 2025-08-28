@@ -414,10 +414,9 @@ class _MapScreenState extends State<MapScreen>
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache['__me__'] = descriptor;
-      final double anchorY = (circleDiameter / 2) / height;
-      _userIconAnchors['__me__'] = Offset(0.5, anchorY);
+      _userIconAnchors['__me__'] = const Offset(0.5, 1.0);
       debugPrint(
-        'Generated me icon size=${width}x$height anchorY=$anchorY (circleCenter=${circleDiameter / 2})',
+        'Generated me icon size=${width}x$height anchorY=1.0 (circleCenter=${circleDiameter / 2})',
       );
       return descriptor;
     } catch (e) {
