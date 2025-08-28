@@ -299,6 +299,127 @@ class OtherUserProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
+
+
+
+                        Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) {
+                                // 1. ウェブ用のラッパーを追加
+                                if (kIsWeb) {
+                                  const aspect = 9 / 19.5;
+                                  const maxPhoneWidth = 384.0;
+
+                                  return LayoutBuilder(builder: (context, constraints) {
+                                    final maxH = constraints.maxHeight * 0.95;
+                                    var width = min(maxPhoneWidth, constraints.maxWidth);
+                                    var height = width / aspect;
+                                    if (height > maxH) {
+                                      height = maxH;
+                                      width = height * aspect;
+                                    }
+
+                                    return Container(
+                                      color: const Color(0xFFF3F4F6),
+                                      child: Center(
+                                        child: Container(
+                                          width: width,
+                                          height: height,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(28),
+                                            boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+                                          ),
+                                          clipBehavior: Clip.hardEdge,
+                                          child: Scaffold(
+                                            backgroundColor: Colors.transparent,
+                                            appBar: AppBar(
+                                              backgroundColor: Colors.white,
+                                              elevation: 0.5,
+                                              leading: IconButton(
+                                                icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                                                onPressed: () => Navigator.pop(context),
+                                              ),
+                                              title: Text(
+                                                user.name,
+                                                style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                            body: IntimacyMessageWidget(
+                                              targetUserId: user.id,
+                                              targetUserName: user.name,
+                                              onSendMessage: (message, isStamp) {
+                                                debugPrint("送信: $message (stamp=$isStamp)");
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  });
+                                }
+
+                                // 2. スマホ実機用のScaffold
+                                return Scaffold(
+                                  backgroundColor: const Color(0xFFF3F4F6),
+                                  appBar: AppBar(
+                                    backgroundColor: Colors.white,
+                                    elevation: 0.5,
+                                    leading: IconButton(
+                                      icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                    title: Text(
+                                      user.name,
+                                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                  body: IntimacyMessageWidget(
+                                    targetUserId: user.id,
+                                    targetUserName: user.name,
+                                    onSendMessage: (message, isStamp) {
+                                      debugPrint("送信: $message (stamp=$isStamp)");
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+
+
+                        /*Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) {
+                                      return Scaffold(
+                                        backgroundColor: const Color(0xFFF3F4F6),
+                                        appBar: AppBar(
+                                          backgroundColor: Colors.white,
+                                          elevation: 0.5,
+                                          leading: IconButton(
+                                            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                                            onPressed: () => Navigator.pop(context),
+                                          ),
+                                          title: Text(
+                                            user.name,
+                                            style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        body: IntimacyMessageWidget(
+                                          targetUserId: user.id,
+                                          targetUserName: user.name,
+                                          onSendMessage: (message, isStamp) {
+                                            // ここで送信処理を定義
+                                            // 例: Firebase へ保存する関数を呼ぶ
+                                            debugPrint("送信: $message (stamp=$isStamp)");
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+
+
+                        
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => IntimacyMessageWidget(
@@ -311,7 +432,7 @@ class OtherUserProfileScreen extends StatelessWidget {
                               },
                             ),
                           ),
-                        );
+                        );*/
 
                       },
 
@@ -332,6 +453,7 @@ class OtherUserProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
+
                         // スタンプ送信
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${user.name}にスタンプを送りました')));
                       },
