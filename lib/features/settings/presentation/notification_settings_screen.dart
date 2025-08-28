@@ -101,18 +101,20 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: Column(
                       children: [
-                        SwitchListTile(
+                        ListTile(
                           leading: Icon(
                             Icons.notifications,
                             color: _pushEnabled ? Colors.blue : Colors.grey,
                           ),
                           title: const Text('プッシュ通知を受け取る'),
                           subtitle: const Text('アプリからの通知を受け取ります'),
-                          value: _pushEnabled,
-                          onChanged: (value) {
-                            setState(() => _pushEnabled = value);
-                            _updateNotificationSettings();
-                          },
+                          trailing: Switch(
+                            value: _pushEnabled,
+                            onChanged: (value) {
+                              setState(() => _pushEnabled = value);
+                              _updateNotificationSettings();
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -295,7 +297,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: isEnabled ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+            color: isEnabled ? Colors.green.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
