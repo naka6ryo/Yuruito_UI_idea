@@ -24,6 +24,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 		super.dispose();
 	}
 
+	void _clearError() {
+		ref.read(authControllerProvider.notifier).clearError();
+	}
+
 	@override
 	Widget build(BuildContext context) {
 		final state = ref.watch(authControllerProvider);
@@ -58,9 +62,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 										const SizedBox(height: 0),
 										const Text('ふらっと出会う。ゆるっとつながる。', style: TextStyle(color: Color.fromARGB(255, 109, 177, 255))),
 										const SizedBox(height: 16),
-										TextField(controller: idCtrl, decoration: const InputDecoration(hintText: 'ID', filled: true)),
+										TextField(controller: idCtrl, onChanged: (_) => _clearError(), decoration: const InputDecoration(hintText: 'ID', filled: true)),
 										const SizedBox(height: 12),
-										TextField(controller: pwCtrl, obscureText: true, decoration: const InputDecoration(hintText: 'パスワード', filled: true)),
+										TextField(controller: pwCtrl, onChanged: (_) => _clearError(), obscureText: true, decoration: const InputDecoration(hintText: 'パスワード', filled: true)),
 										const SizedBox(height: 16),
 										SizedBox(
 											width: actionButtonWidth,
@@ -68,19 +72,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 												onPressed: state.loading
 													? null
 													: () async {
-													// ログイン処理
-													await ref.read(authControllerProvider.notifier).login(idCtrl.text, pwCtrl.text);
-													if (!mounted) return;
-													// 成功時のみホーム画面へ遷移.
-													final currentState = ref.read(authControllerProvider);
-													if (currentState.user != null) {
-														// Use post-frame callback so Navigator is called synchronously with a valid context.
-														WidgetsBinding.instance.addPostFrameCallback((_) {
-															if (!mounted) return;
-															Navigator.of(context).pushReplacementNamed(AppRoutes.shell);
-														});
-													}
-												},
+														// ログイン処理
+														await ref.read(authControllerProvider.notifier).login(idCtrl.text, pwCtrl.text);
+														if (!mounted) return;
+														// 成功時のみホーム画面へ遷移.
+														final currentState = ref.read(authControllerProvider);
+														if (currentState.user != null) {
+															_clearError();
+															WidgetsBinding.instance.addPostFrameCallback((_) {
+																if (!mounted) return;
+																Navigator.of(context).pushReplacementNamed(AppRoutes.shell);
+															});
+														}
+													},
 												child: state.loading ? const CircularProgressIndicator(color: AppTheme.blue500) : const Text('ログイン'),
 											),
 										),
@@ -88,7 +92,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 										SizedBox(
 											width: actionButtonWidth,
 											child: OutlinedButton(
-												onPressed: () => Navigator.pushNamed(context, AppRoutes.registration),
+												onPressed: () {
+													_clearError();
+													Navigator.pushNamed(context, AppRoutes.registration);
+												},
 												child: const Text('新規登録'),
 											),
 										),

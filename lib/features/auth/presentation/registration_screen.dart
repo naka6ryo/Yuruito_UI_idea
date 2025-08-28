@@ -26,6 +26,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 		idCtrl.addListener(_validate);
 		pwCtrl.addListener(_validate);
 		pwConfirmCtrl.addListener(_validate);
+		nameCtrl.addListener(_clearError);
+		idCtrl.addListener(_clearError);
+		pwCtrl.addListener(_clearError);
+		pwConfirmCtrl.addListener(_clearError);
 	}
 
 	@override
@@ -34,11 +38,19 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 		idCtrl.removeListener(_validate);
 		pwCtrl.removeListener(_validate);
 		pwConfirmCtrl.removeListener(_validate);
+		nameCtrl.removeListener(_clearError);
+		idCtrl.removeListener(_clearError);
+		pwCtrl.removeListener(_clearError);
+		pwConfirmCtrl.removeListener(_clearError);
 		nameCtrl.dispose();
 		idCtrl.dispose();
 		pwCtrl.dispose();
 		pwConfirmCtrl.dispose();
 		super.dispose();
+	}
+
+	void _clearError() {
+		ref.read(authControllerProvider.notifier).clearError();
 	}
 
 	void _validate() {
@@ -71,7 +83,10 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 										// Header (back + title)
 										Row(
 											children: [
-												BackButton(),
+												BackButton(onPressed: () {
+													_clearError();
+													Navigator.pop(context);
+												}),
 												const SizedBox(width: 8),
 												const Expanded(child: Text('新規登録', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
 											],
@@ -96,6 +111,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 												onPressed: !_canProceed || state.loading
 													? null
 													: () async {
+														_clearError();
 														await ref.read(authControllerProvider.notifier).signup(
 															email: idCtrl.text.trim(),
 															password: pwCtrl.text,
@@ -110,7 +126,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 												child: state.loading ? const CircularProgressIndicator() : const Text('次へ'),
 											),
 										),
-										TextButton(onPressed: () => Navigator.pop(context), child: const Text('ログイン画面へ')),
+										TextButton(onPressed: () { _clearError(); Navigator.pop(context); }, child: const Text('ログイン画面へ')),
 									],
 								),
 							),
