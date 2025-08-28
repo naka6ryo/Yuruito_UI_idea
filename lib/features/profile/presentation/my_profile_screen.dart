@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../settings/presentation/settings_screen.dart';
@@ -16,9 +17,11 @@ class MyProfileScreen extends StatefulWidget {
 class _MyProfileScreenState extends State<MyProfileScreen> {
   final _auth = FirebaseAuth.instance;
   final _userRepo = FirebaseUserRepository();
+  final _firestore = FirebaseFirestore.instance;
   
   UserEntity? _currentUser;
   bool _isLoading = true;
+  Map<String, dynamic>? _latestAnswers; // from users/{uid}.profileAnswers or latest history
 
   @override
   void initState() {
@@ -31,8 +34,40 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       final currentUser = _auth.currentUser;
       if (currentUser != null) {
         final user = await _userRepo.fetchById(currentUser.uid);
+        // Load latest profileAnswers, or fallback to latest questionnaire history
+        Map<String, dynamic>? answers;
+        try {
+          final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+          final data = userDoc.data();
+          if (data != null && data['profileAnswers'] is Map<String, dynamic>) {
+            answers = Map<String, dynamic>.from(data['profileAnswers']);
+          } else {
+            // try latest history
+            final hist = await _firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .collection('questionnaires')
+                .orderBy('createdAt', descending: true)
+                .limit(1)
+                .get();
+            if (hist.docs.isNotEmpty) {
+              final h = hist.docs.first.data();
+              answers = {
+                // map history keys to q1..q6 for rendering convenience
+                'q1': h['one_word'] ?? '',
+                'q2': h['favorite_food'] ?? '',
+                'q3': h['like_work'] ?? '',
+                'q4': h['like_taste_sushi'] ?? '',
+                'q5': h['like_music_genre'] ?? '',
+                'q6': h['how_do_you_use_the_time'] ?? '',
+              };
+            }
+          }
+        } catch (_) {}
+
         setState(() {
           _currentUser = user;
+          _latestAnswers = answers;
           _isLoading = false;
         });
       } else {
@@ -201,7 +236,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // プロフィール詳細情報
+                      // プロフィール詳細情報（Firestore回答を反映）
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
@@ -228,56 +263,44 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            
-                            // 趣味
                             _buildProfileInfoCard(
                               'あなたを表す一言は？',
-                              _currentUser?.bio.isNotEmpty == true ? _currentUser!.bio : 'のんびり過ごしてます。',
+                              _latestAnswers?['q1'] ?? 'のんびり過ごしてます。',
                               Icons.mood,
                               Colors.blue,
                             ),
                             const SizedBox(height: 12),
-                            
-                            // 好きな食べ物
                             _buildProfileInfoCard(
                               'つい頼んでしまう、好きな食べ物は？',
-                              'ラーメン',
+                              _latestAnswers?['q2'] ?? 'ラーメン',
                               Icons.restaurant,
                               Colors.orange,
                             ),
                             const SizedBox(height: 12),
-                            
-                            // 趣味
                             _buildProfileInfoCard(
                               '最近、夢中になっている作品は？',
-                              '海外ドラマ「フレンズ」',
+                              _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」',
                               Icons.movie,
                               Colors.purple,
                             ),
                             const SizedBox(height: 12),
-                            
-                            // 好きな音楽
                             _buildProfileInfoCard(
                               'よく聴く、好きな音楽のジャンルは？',
-                              'インディーズロック',
+                              _latestAnswers?['q5'] ?? 'インディーズロック',
                               Icons.music_note,
                               Colors.green,
                             ),
                             const SizedBox(height: 12),
-                            
-                            // 寿司ネタ
                             _buildProfileInfoCard(
                               'お寿司屋さんで、これだけは外せないネタは？',
-                              'サーモン',
+                              _latestAnswers?['q4'] ?? 'サーモン',
                               Icons.set_meal,
                               Colors.red,
                             ),
                             const SizedBox(height: 12),
-                            
-                            // 時間の使い方
                             _buildProfileInfoCard(
                               'もし明日から寝なくても平気になったら、その時間をどう使う？',
-                              '見たかった映画を全部見る',
+                              _latestAnswers?['q6'] ?? '見たかった映画を全部見る',
                               Icons.schedule,
                               Colors.teal,
                             ),
@@ -286,7 +309,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // クイック設定
+                      // クイック設定（そのまま）
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),

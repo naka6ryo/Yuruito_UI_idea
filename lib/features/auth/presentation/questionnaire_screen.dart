@@ -46,7 +46,8 @@ Future<void> _completeAndSave() async {
   try {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      final data = <String, dynamic>{
+      // 1) users/{uid} に最新回答を上書き（表示用）
+      final latestData = <String, dynamic>{
         'profileAnswers': {
           'q1': answers[0] ?? '',
           'q2': answers[1] ?? '',
@@ -57,7 +58,20 @@ Future<void> _completeAndSave() async {
         },
         'updatedAt': DateTime.now().toIso8601String(),
       };
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(data, SetOptions(merge: true));
+      final users = FirebaseFirestore.instance.collection('users');
+      await users.doc(uid).set(latestData, SetOptions(merge: true));
+
+      // 2) users/{uid}/questionnaires に履歴を追加（質問ID付き）
+      final historyRef = users.doc(uid).collection('questionnaires').doc();
+      await historyRef.set({
+        'one_word': answers[0] ?? '',
+        'favorite_food': answers[1] ?? '',
+        'like_work': answers[2] ?? '',
+        'like_taste_sushi': answers[3] ?? '',
+        'like_music_genre': answers[4] ?? '',
+        'how_do_you_use_the_time': answers[5] ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     }
   } catch (e) {
     // ignore write errors, still navigate
@@ -107,8 +121,8 @@ Widget build(BuildContext context) {
 													textAlign: TextAlign.center,
 													decoration: const InputDecoration(filled: true),
 												),
-											],
-										),
+										],
+									),
 									),
 									Row(
 										children: [
@@ -136,6 +150,6 @@ Widget build(BuildContext context) {
 			),
 		),
 	);
-}
+	}
 
 }
