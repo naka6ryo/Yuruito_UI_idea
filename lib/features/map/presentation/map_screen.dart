@@ -687,27 +687,55 @@ class _MapScreenState extends State<MapScreen>
                   } else {
                     initialCenter = const LatLng(35.6895, 139.6917);
                   }
-                  return GoogleMap(
-                    style: _noLabelsMapStyle,
-                    initialCameraPosition: CameraPosition(
-                      target: initialCenter,
-                      zoom: _currentZoom,
-                    ),
-                    markers: _visibleMarkers.union(myMarkers),
-                    circles: const {},
-                    polylines: _visiblePolylines,
-                    myLocationEnabled: false,
-                    myLocationButtonEnabled: false,
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      _mapController?.setMapStyle(_noLabelsMapStyle);
-                    },
-                    onCameraIdle: () async {
-                      if (_mapController != null) {
-                        _currentZoom = await _mapController!.getZoomLevel();
-                        _updateVisibleMarkers();
-                      }
-                    },
+                  final mapController = legacy.Provider.of<MapController>(
+                    context,
+                    listen: false,
+                  );
+                  return Stack(
+                    children: [
+                      GoogleMap(
+                        style: _noLabelsMapStyle,
+                        initialCameraPosition: CameraPosition(
+                          target: initialCenter,
+                          zoom: _currentZoom,
+                        ),
+                        markers: _visibleMarkers.union(myMarkers),
+                        circles: const {},
+                        polylines: _visiblePolylines,
+                        myLocationEnabled: false,
+                        myLocationButtonEnabled: false,
+                        zoomControlsEnabled: false, // ＋−のズームボタンを消す
+                        compassEnabled: false, // コンパスを消す
+                        mapToolbarEnabled: false, // 経路ボタンなどのツールバーを消す
+                        zoomGesturesEnabled: false, // ピンチズーム無効
+                        scrollGesturesEnabled: false, // スクロール無効
+                        rotateGesturesEnabled: false, // 回転無効
+                        tiltGesturesEnabled: false, // 傾き無効
+                        onMapCreated: (controller) {
+                          _mapController = controller;
+                          _mapController?.setMapStyle(_noLabelsMapStyle);
+                          mapController.setGoogleMapController(controller);
+                        },
+                        onCameraIdle: () async {
+                          if (_mapController != null) {
+                            _currentZoom = await _mapController!.getZoomLevel();
+                            _updateVisibleMarkers();
+                          }
+                        },
+                      ),
+                      Positioned(
+                        bottom: 30,
+                        right: 16,
+                        child: FloatingActionButton(
+                          onPressed: myAveragedLocation != null
+                              ? () => mapController.goToMyLocation(
+                                  myAveragedLocation!,
+                                )
+                              : null,
+                          child: const Icon(Icons.my_location),
+                        ),
+                      ),
+                    ],
                   );
                 },
               );
