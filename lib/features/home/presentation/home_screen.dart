@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/user_card.dart';
 import '../../profile/presentation/my_profile_screen.dart';
+import '../../map/ShinmituDo/intimacy_calculator.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -20,13 +21,14 @@ State<HomeScreen> createState() => _HomeScreenState();
 class _HomeScreenState extends State<HomeScreen> {
 final repo = FirebaseUserRepository();
 final _auth = FirebaseAuth.instance;
+final _intimacyCalculator = IntimacyCalculator();
 bool proximityOn = true;
 bool dmOn = true;
 bool locationOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
 // ▼ ここを追加（_HomeScreenState のフィールドに追記）
-Relationship? _relationFilter; // プルダウンの選択値（今回はUIのみで未使用）
+Relationship? _relationFilter; // プルダウンの選択値
 
 
 
@@ -164,42 +166,38 @@ Padding(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
       const Text(
-        '表示絞り込み',
+        '親密度フィルター',
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       DropdownButton<Relationship?>(
-        value: _relationFilter, // 初期値は null（未選択）なので hint を表示
-        hint: const Text('選択してください'),
+        value: _relationFilter,
+        hint: const Text('レベルを選択'),
         items: const [
           DropdownMenuItem<Relationship?>(
             value: null,
-            child: Text('全て'),
+            child: Text('全て表示'),
           ),
           DropdownMenuItem(
             value: Relationship.close,
-            child: Text('仲良し'),
+            child: Text('レベル4: 仲良し'),
           ),
           DropdownMenuItem(
             value: Relationship.friend,
-            child: Text('友達'),
+            child: Text('レベル3: 友達'),
           ),
           DropdownMenuItem(
             value: Relationship.acquaintance,
-            child: Text('顔見知り'),
+            child: Text('レベル2: 顔見知り'),
           ),
           DropdownMenuItem(
             value: Relationship.passingMaybe,
-            child: Text('知り合いかも'),
+            child: Text('レベル1: 知り合いかも'),
           ),
-          
-          
-          
         ],
         onChanged: (rel) {
           setState(() {
             _relationFilter = rel;
           });
-          // ※ ここでは UI の選択状態を保持するだけ（フィルタ処理はまだ実装しない）
         },
       ),
     ],
@@ -207,7 +205,52 @@ Padding(
 ),
 // ▲▲▲ ここまで挿入 ▲▲▲
 
-
+// 親密度レベル統計情報
+const SizedBox(height: 12),
+Card(
+  child: Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '親密度レベル統計',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<Map<String, int?>>(
+          stream: _intimacyCalculator.watchIntimacyMap(_auth.currentUser?.uid ?? ''),
+          builder: (context, snap) {
+            final intimacyMap = snap.data ?? <String, int?>{};
+            final levelCounts = <int, int>{};
+            
+            // 各レベルの人数をカウント
+            for (final level in intimacyMap.values) {
+              if (level != null && level > 0) {
+                levelCounts[level] = (levelCounts[level] ?? 0) + 1;
+              }
+            }
+            
+            debugPrint('🔍 親密度マップ: $intimacyMap');
+            debugPrint('📊 レベル別カウント: $levelCounts');
+            
+            return Column(
+              children: [
+                _buildLevelStatRow('レベル4: 仲良し', levelCounts[4] ?? 0, const Color(0xFFA78BFA)),
+                const SizedBox(height: 8),
+                _buildLevelStatRow('レベル3: 友達', levelCounts[3] ?? 0, const Color(0xFF86EFAC)),
+                const SizedBox(height: 8),
+                _buildLevelStatRow('レベル2: 顔見知り', levelCounts[2] ?? 0, const Color(0xFFFDBA74)),
+                const SizedBox(height: 8),
+                _buildLevelStatRow('レベル1: 知り合いかも', levelCounts[1] ?? 0, const Color(0xFFF9A8D4)),
+              ],
+            );
+          },
+        ),
+      ],
+    ),
+  ),
+),
 
 /*const SizedBox(height: 12),
 const Padding(
@@ -227,48 +270,74 @@ return UserCard(user: u);
 
 
 const SizedBox(height: 12),
-const Padding(
-padding: EdgeInsets.symmetric(vertical: 8),
-child: Text('知り合い', style: TextStyle(fontWeight: FontWeight.bold)),
+Padding(
+  padding: const EdgeInsets.symmetric(vertical: 8),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(
+        _relationFilter != null 
+            ? '${_relationFilter!.label} (レベル${_relationFilter!.level})'
+            : '知り合い',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      if (_relationFilter != null)
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _relationFilter = null;
+            });
+          },
+          child: const Text('フィルター解除'),
+        ),
+    ],
+  ),
 ),
-FutureBuilder(
-future: acquaintances,
-builder: (context, snap) {
+StreamBuilder<List<UserEntity>>(
+  stream: repo.watchAllUsersWithLocations(),
+  builder: (context, snap) {
+    final users = snap.data ?? <UserEntity>[];
+    
+    return StreamBuilder<Map<String, int?>>(
+      stream: _intimacyCalculator.watchIntimacyMap(_auth.currentUser?.uid ?? ''),
+      builder: (context, intimacySnap) {
+        final intimacyMap = intimacySnap.data ?? <String, int?>{};
+        
+        // 実際の親密度レベルが1以上のユーザーのみを表示
+        var list = users.where((u) {
+          final actualLevel = intimacyMap[u.id];
+          return actualLevel != null && actualLevel > 0;
+        }).toList();
 
-    void debugCounts(List<UserEntity> xs) {
-      final m = {for (final r in Relationship.values) r: 0};
-      for (final u in xs) {
-        m[u.relationship] = (m[u.relationship] ?? 0) + 1;
-      }
-      m.forEach((k, v) => debugPrint('[$k] $v'));
-    }
+        // フィルター処理：選択されたレベルに一致するユーザーのみ表示
+        if (_relationFilter != null) {
+          list = list.where((u) {
+            final actualLevel = intimacyMap[u.id];
+            return actualLevel == _relationFilter!.level;
+          }).toList();
+          debugPrint('🔍 フィルター適用: ${_relationFilter!.label} (レベル${_relationFilter!.level}) - ${list.length}人');
+        } else {
+          debugPrint('🔍 フィルターなし: 全レベル表示 - ${list.length}人');
+        }
 
-    // ここに挿入（sortの前）
-    final raw = (snap.data ?? <UserEntity>[]);
-debugCounts(raw);
+        // 実際の親密度レベル順にソート（レベル4: 仲良し → レベル1: 知り合いかも）
+        list.sort((a, b) {
+          final levelA = intimacyMap[a.id] ?? 0;
+          final levelB = intimacyMap[b.id] ?? 0;
+          return levelB.compareTo(levelA);
+        });
 
-// まず none だけ除外
-var list = raw.where((u) => u.relationship != Relationship.none).toList();
-
-// ▼ フィルタ：_relationFilter が null（=すべて）なら通す。非nullなら一致のみ。
-if (_relationFilter != null) {
-  list = list.where((u) => u.relationship == _relationFilter).toList();
-}
-
-// 並びは従来どおり（親密度の高い順）
-list.sort((a, b) => b.relationship.index.compareTo(a.relationship.index));
-
-
-
-// snap.data が null のときは空リストにする
-
-
-
-	if (list.isEmpty) return const SizedBox();
-	return Column(
-		children: list.map((u) => UserCard(user: u)).toList(),
-	);
-},
+        // snap.data が null のときは空リストにする
+        if (list.isEmpty) return const SizedBox();
+        return Column(
+          children: list.map((u) => UserCard(
+            user: u,
+            actualIntimacyLevel: intimacyMap[u.id],
+          )).toList(),
+        );
+      },
+    );
+  },
 ),
 ],
 );
@@ -282,6 +351,39 @@ Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged) {
 			Switch(value: value, onChanged: onChanged),
 		],
 	);
+}
+
+Widget _buildLevelStatRow(String label, int count, Color color) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
+      Text(
+        '$count人',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    ],
+  );
 }
 
 Widget _buildMyAvatar() {

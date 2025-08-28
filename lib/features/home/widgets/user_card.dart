@@ -7,7 +7,12 @@ import '../../profile/presentation/other_user_profile_screen.dart';
 
 class UserCard extends StatefulWidget {
 final UserEntity user;
-const UserCard({super.key, required this.user});
+final int? actualIntimacyLevel; // 実際の親密度レベル
+const UserCard({
+  super.key, 
+  required this.user, 
+  this.actualIntimacyLevel,
+});
 
 @override
 State<UserCard> createState() => _UserCardState();
@@ -94,7 +99,7 @@ leading: _buildAvatar(),
 		maxLines: 2,
 		overflow: TextOverflow.ellipsis,
 	),
-trailing: _badge(widget.user.relationship),
+trailing: _badge(widget.actualIntimacyLevel),
 ),
 );
 }
@@ -122,13 +127,35 @@ Color _getRelationshipColor(Relationship relationship) {
   }
 }
 
-Widget? _badge(Relationship r) {
-	// レベル0（none）の場合はタグを表示しない
-	if (!r.shouldDisplay) return null;
+Widget? _badge(int? actualLevel) {
+	// 実際の親密度レベルがnullまたは0の場合はタグを表示しない
+	if (actualLevel == null || actualLevel <= 0) return null;
 	
-	final label = r.label;
-	if (label.isEmpty) return null;
-	Color color = _getRelationshipColor(r);
+	// レベルに応じたラベルと色を取得
+	String label;
+	Color color;
+	
+	switch (actualLevel) {
+		case 4:
+			label = '仲良し';
+			color = const Color(0xFFA78BFA); // 紫
+			break;
+		case 3:
+			label = '友達';
+			color = const Color(0xFF86EFAC); // 緑
+			break;
+		case 2:
+			label = '顔見知り';
+			color = const Color(0xFFFDBA74); // オレンジ
+			break;
+		case 1:
+			label = '知り合いかも';
+			color = const Color(0xFFF9A8D4); // ピンク
+			break;
+		default:
+			return null;
+	}
+	
 	final int argb = color.toARGB32();
 	final int red = (argb >> 16) & 0xFF;
 	final int green = (argb >> 8) & 0xFF;
