@@ -333,8 +333,14 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // On web, render inside the same phone-like framed container used by AppShell
-    if (kIsWeb) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 600.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
+
+    // On web & wide screens, render inside the phone-like framed container used by AppShell.
+    // On native or narrow web viewports, use full-screen Scaffold.
+    if (isWeb && !isNarrow) {
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0;
 
@@ -399,16 +405,16 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                   body: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _currentUser == null
-                      ? const Center(
-                          child: Text(
-                            'ログインが必要です',
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: _buildBody(),
-                        ),
+                          ? const Center(
+                              child: Text(
+                                'ログインが必要です',
+                                style: TextStyle(fontSize: 16, color: Colors.grey),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: _buildBody(),
+                            ),
                 ),
               ),
             ),
@@ -417,6 +423,7 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       );
     }
 
+    // Full-screen for native platforms and narrow web viewports
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
@@ -445,16 +452,16 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _currentUser == null
-          ? const Center(
-              child: Text(
-                'ログインが必要です',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: _buildBody(),
-            ),
+              ? const Center(
+                  child: Text(
+                    'ログインが必要です',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                )
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildBody(),
+                ),
     );
   }
 

@@ -19,6 +19,7 @@ class _AppShellState extends State<AppShell> {
   int _index = 1; // index.html 同様、初期はマップ
   final _titles = const ['ホーム', 'マップ', 'チャット'];
 
+
   @override
   Widget build(BuildContext context) {
     final views = [
@@ -131,4 +132,5 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+
 }
