@@ -299,9 +299,22 @@ class OtherUserProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        // チャット画面に遷移
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${user.name}とのチャットを開きます')));
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => IntimacyMessageWidget(
+                              targetUserId: user.id,
+                              targetUserName: user.name,
+                              onSendMessage: (message, isStamp) {
+                                // ここで送信処理を定義
+                                // 例: Firebase へ保存する関数を呼ぶ
+                                debugPrint("送信: $message (stamp=$isStamp)");
+                              },
+                            ),
+                          ),
+                        );
+
                       },
+
                       icon: const Icon(Icons.chat_bubble_outline),
                       label: const Text('メッセージを送る'),
                       style: ElevatedButton.styleFrom(
