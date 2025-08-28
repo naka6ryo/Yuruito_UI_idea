@@ -832,188 +832,176 @@ class _MapProfileModalState extends State<MapProfileModal> {
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
-      maxChildSize: 0.8,
+      maxChildSize: 0.9,
       minChildSize: 0.3,
       builder: (ctx, ctrl) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+        ),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              decoration: BoxDecoration(
-                color: AppTheme.scaffoldBg,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            controller: ctrl,
+            padding: EdgeInsets.zero,
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                decoration: BoxDecoration(
+                  color: AppTheme.scaffoldBg,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(20),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close),
+                          color: const Color.fromARGB(255, 107, 184, 235),
+                        ),
+                      ],
+                    ),
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: AppTheme.blue500,
+                      child: Text(
+                        widget.user.name.isNotEmpty ? widget.user.name[0] : '?',
+                        style: const TextStyle(color: Colors.white, fontSize: 20),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.user.name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      widget.user.relationship.label,
+                      style: TextStyle(color: AppTheme.blue500),
+                    ),
+                    const SizedBox(height: 4),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => OtherUserProfileScreen(user: widget.user),
+                          ),
+                        );
+                      },
+                      child: const Text('プロフィールを見る'),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close),
-                        color: const Color.fromARGB(255, 107, 184, 235),
-                      ),
-                    ],
-                  ),
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: AppTheme.blue500,
-                    child: Text(
-                      widget.user.name.isNotEmpty ? widget.user.name[0] : '?',
-                      style: const TextStyle(color: Colors.white, fontSize: 20),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.user.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    widget.user.relationship.label,
-                    style: TextStyle(color: AppTheme.blue500),
-                  ),
-                  const SizedBox(height: 4),
-                  OutlinedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              OtherUserProfileScreen(user: widget.user),
-                        ),
-                      );
-                    },
-                    child: const Text('プロフィールを見る'),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_messages.isEmpty
-                        ? const SizedBox.shrink()
-                        : ListView.builder(
-                            controller: ctrl,
-                            itemCount: _messages.length,
-                            itemBuilder: (context, index) {
-                              final message = _messages[index];
-                              final isMe = message.sent;
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 4,
+              // Messages area (use internal list of widgets so the sheet controller handles scrolling)
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_messages.isEmpty)
+                const SizedBox.shrink()
+              else
+                ..._messages.map((message) {
+                  final isMe = message.sent;
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      children: [
+                        Container(
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.7,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isMe ? AppTheme.blue500 : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                message.text,
+                                style: TextStyle(
+                                  color: isMe ? Colors.white : Colors.black,
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: isMe
-                                      ? MainAxisAlignment.end
-                                      : MainAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      constraints: BoxConstraints(
-                                        maxWidth:
-                                            MediaQuery.of(context).size.width *
-                                            0.7,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isMe
-                                            ? AppTheme.blue500
-                                            : Colors.grey[200],
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            message.text,
-                                            style: TextStyle(
-                                              color: isMe
-                                                  ? Colors.white
-                                                  : Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey,
-                                                ),
-                                              ),
-                                              FutureBuilder<String>(
-                                                future: _getUserName(
-                                                  message.from,
-                                                ),
-                                                builder: (context, nameSnap) {
-                                                  return Text(
-                                                    'from: ${nameSnap.data ?? 'Unknown'}',
-                                                    style: const TextStyle(
-                                                      fontSize: 10,
-                                                      color: Colors.grey,
-                                                    ),
-                                                  );
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          )),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              constraints: const BoxConstraints(maxHeight: 310),
-              child: SingleChildScrollView(
-                child: IntimacyMessageWidget(
-                  targetUserId: widget.user.id,
-                  targetUserName: widget.user.name,
-                  onSendMessage: (message, isSticker) async {
-                    await _sendMessage(message, isSticker);
-                    if (mounted) {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ChatRoomScreen(
-                            name: widget.user.name,
-                            status: widget.user.relationship.label,
-                            peerUid: widget.user.id,
-                            conversationId: widget.user.id,
-                            initialMessage: message,
-                            initialIsSticker: isSticker,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                  FutureBuilder<String>(
+                                    future: _getUserName(message.from),
+                                    builder: (context, nameSnap) {
+                                      return Text(
+                                        'from: ${nameSnap.data ?? 'Unknown'}',
+                                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    }
-                  },
+                      ],
+                    ),
+                  );
+                }),
+              // Input area pinned at the bottom of the sheet content; add viewInsets padding so keyboard doesn't overlap
+              Padding(
+                padding: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  top: 8,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 8,
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 310),
+                  child: IntimacyMessageWidget(
+                    targetUserId: widget.user.id,
+                    targetUserName: widget.user.name,
+                    onSendMessage: (message, isSticker) async {
+                      await _sendMessage(message, isSticker);
+                      if (mounted) {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ChatRoomScreen(
+                              name: widget.user.name,
+                              status: widget.user.relationship.label,
+                              peerUid: widget.user.id,
+                              conversationId: widget.user.id,
+                              initialMessage: message,
+                              initialIsSticker: isSticker,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
