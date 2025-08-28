@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
+import 'package:flutter/services.dart';
 
 class IntimacyMessageWidget extends StatefulWidget {
   final String targetUserId;
@@ -39,6 +40,10 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   @override
   void initState() {
     super.initState();
+    // 文字入力時に状態更新して警告を表示
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadIntimacyLevel();
   }
 
@@ -156,8 +161,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         );
 
       case 3:
-      case 4:
-        final maxLength = _intimacyLevel == 3 ? 10 : 30;
+        final maxLength = 10;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -169,6 +173,65 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                   child: TextField(
                     controller: _controller,
                     maxLength: maxLength,
+                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)],
+                    decoration: InputDecoration(
+                      hintText: 'メッセージを入力...',
+                      counterText: '',
+                      errorText: _controller.text.length > maxLength ? '最大$maxLength文字までです' : null,
+                    ),
+                    onChanged: (text) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    final text = _controller.text.trim();
+                    if (text.isNotEmpty && text.length <= maxLength) {
+                      _sendMessage(text, false);
+                    }
+                  },
+                  icon: Icon(Icons.send, color: AppTheme.blue500),
+                ),
+              ],
+            ),
+          ],
+        );
+
+      case 4:
+        // レベル4: 30文字制限のテキスト + スタンプ
+        const maxLength = 30;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // スタンプ選択
+            const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _stickerOptions.map((sticker) => GestureDetector(
+                onTap: () => _sendMessage(sticker, true),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.scaffoldBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.blue500),
+                  ),
+                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                ),
+              )).toList(),
+            ),
+            const SizedBox(height: 16),
+            // テキスト入力
+            Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    maxLength: maxLength,
+                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)], // 最大文字数を制限
                     decoration: const InputDecoration(
                       hintText: 'メッセージを入力...',
                       counterText: '', // 文字数表示を非表示
@@ -187,6 +250,15 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                 ),
               ],
             ),
+            // 最大文字数に達した場合の警告表示
+            if (_controller.text.length >= maxLength)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '最大$maxLength文字までです',
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
             Text(
               '${_controller.text.length}/$maxLength文字',
               style: TextStyle(
@@ -214,10 +286,6 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.targetUserName,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
           Text(
             _getIntimacyLevelText(),
             style: TextStyle(color: AppTheme.blue500, fontSize: 14),
