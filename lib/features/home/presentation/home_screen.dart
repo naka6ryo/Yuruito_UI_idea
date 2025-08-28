@@ -97,7 +97,7 @@ StreamBuilder<List<UserEntity>>(
               children: [
                 const Text('オンラインユーザー', style: TextStyle(fontWeight: FontWeight.w600)),
                 Text(
-                  isLoading ? '読み込み中...' : '$userCount人',
+                  isLoading ? 'Loading...' : '$userCount人',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
