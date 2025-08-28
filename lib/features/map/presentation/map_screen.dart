@@ -42,6 +42,12 @@ class _MapScreenState extends State<MapScreen>
   GoogleMapController? _mapController;
   PermissionStatus _permissionStatus = PermissionStatus.checking;
 
+  List<UserEntity> _allUsers = []; // Streamから受け取った全ユーザーを保持
+  Set<Marker> _visibleMarkers = {}; // 地図に実際に表示するマーカー
+  double _currentZoom = 14.0; // 現在のズームレベル
+
+  late Future<List<dynamic>> _prepareDataFuture;
+
   // Map style that hides place names / POI / transit / administrative labels
   static const String _noLabelsMapStyle = '''
 [
@@ -55,6 +61,198 @@ class _MapScreenState extends State<MapScreen>
 ]
 ''';
 
+  double _getClusteringThreshold(double zoom) {
+    if (zoom > 16) return 0; // ストリートレベルではクラスタリングしない
+    if (zoom > 14) return 150; // 近所レベル（徒歩数分）
+    if (zoom > 12) return 500; // 地区レベル（駅周辺など）
+    if (zoom > 10) return 1000; // 市区町村レベル (1km)
+    if (zoom > 8) return 5000; // 都市レベル (5km)
+    return 10000;
+  }
+
+  // 表示するマーカーを計算・更新する
+  Future<void> _updateVisibleMarkers(
+    Map<String, BitmapDescriptor> icons,
+  ) async {
+    // ▼▼▼ 1. 関数を「async」にする ▼▼▼
+
+    final double threshold = _getClusteringThreshold(_currentZoom);
+    final Set<Marker> newMarkers = {};
+
+    // ▼▼▼ 2. 非同期処理を入れるためのリストを準備 ▼▼▼
+    final List<Future<Marker>> markerFutures = [];
+
+    if (threshold <= 0) {
+      // クラスタリングしない場合の処理は変更なし
+      for (final user in _allUsers) {
+        if (user.lat != null && user.lng != null) {
+          newMarkers.add(
+            Marker(
+              markerId: MarkerId(user.id),
+              position: LatLng(user.lat!, user.lng!),
+              icon: icons[user.id] ?? BitmapDescriptor.defaultMarker,
+              anchor: _userIconAnchors[user.id] ?? const Offset(0.5, 0.34),
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => MapProfileModal(user: user),
+                );
+              },
+            ),
+          );
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _visibleMarkers = newMarkers;
+        });
+      }
+      return;
+    }
+
+    List<UserEntity> unprocessedUsers = List.from(
+      _allUsers.where((u) => u.lat != null && u.lng != null),
+    );
+
+    while (unprocessedUsers.isNotEmpty) {
+      final baseUser = unprocessedUsers.first;
+      unprocessedUsers.removeAt(0);
+      final cluster = <UserEntity>[baseUser];
+      unprocessedUsers.removeWhere((otherUser) {
+        final distance = Geolocator.distanceBetween(
+          baseUser.lat!,
+          baseUser.lng!,
+          otherUser.lat!,
+          otherUser.lng!,
+        );
+        if (distance < threshold) {
+          cluster.add(otherUser);
+          return true;
+        }
+        return false;
+      });
+
+      if (cluster.length > 1) {
+        // ▼▼▼ 3. クラスターマーカーの生成をFutureとしてリストに追加 ▼▼▼
+        markerFutures.add(_createClusterMarker(cluster));
+      } else {
+        // 1人の場合は通常のマーカー（同期処理なので直接追加）
+        newMarkers.add(
+          Marker(
+            markerId: MarkerId(baseUser.id),
+            position: LatLng(baseUser.lat!, baseUser.lng!),
+            icon: icons[baseUser.id] ?? BitmapDescriptor.defaultMarker,
+            anchor: _userIconAnchors[baseUser.id] ?? const Offset(0.5, 0.34),
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => MapProfileModal(user: baseUser),
+              );
+            },
+          ),
+        );
+      }
+    }
+
+    // ▼▼▼ 4. 全ての非同期処理（クラスターアイコン生成）が終わるのをここで待つ ▼▼▼
+    final clusterMarkers = await Future.wait(markerFutures);
+    newMarkers.addAll(clusterMarkers);
+
+    // ▼▼▼ 5. 全てのマーカーが揃ってから、最後に一度だけUIを更新する ▼▼▼
+    if (mounted) {
+      setState(() {
+        _visibleMarkers = newMarkers;
+      });
+    }
+  }
+
+  // クラスターマーカーを非同期で生成するための、新しいヘルパー関数
+  // （このメソッドも _MapScreenState の中にコピーしてください）
+  Future<Marker> _createClusterMarker(List<UserEntity> cluster) async {
+    final double avgLat =
+        cluster.map((u) => u.lat!).reduce((a, b) => a + b) / cluster.length;
+    final double avgLng =
+        cluster.map((u) => u.lng!).reduce((a, b) => a + b) / cluster.length;
+    final icon = await _generateClusterIcon(cluster.length);
+    return Marker(
+      markerId: MarkerId('cluster_${avgLat}_${avgLng}'),
+      position: LatLng(avgLat, avgLng),
+      icon: icon,
+      onTap: () {
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            LatLng(avgLat, avgLng),
+            _currentZoom + 1.5,
+          ),
+        );
+      },
+    );
+  }
+
+  // クラスターアイコン（人数表示）を動的に生成する
+  Future<BitmapDescriptor> _generateClusterIcon(int count) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    final Paint paint = Paint()..color = Colors.orange;
+    const double size = 40.0;
+
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+
+    // 人数の桁数に応じてフォントサイズを決定
+    double fontSize;
+    if (count < 10) {
+      // 1桁の場合
+      fontSize = 40.0;
+    } else if (count < 100) {
+      // 2桁の場合
+      fontSize = 32.0;
+    } else {
+      // 3桁以上の場合
+      fontSize = 24.0;
+    }
+
+    final ui.ParagraphBuilder builder =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: fontSize, // ← 先ほど決定した変数をここで使用
+              fontWeight: FontWeight.bold,
+            ),
+          )
+          ..pushStyle(ui.TextStyle(color: Colors.white))
+          ..addText(count.toString());
+
+    final ui.ParagraphBuilder textBuilder =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(
+              textAlign: TextAlign.center,
+              fontSize: 40.0,
+              fontWeight: FontWeight.bold,
+            ),
+          )
+          ..pushStyle(ui.TextStyle(color: Colors.white))
+          ..addText(count.toString());
+
+    final ui.Paragraph paragraph = builder.build();
+    paragraph.layout(const ui.ParagraphConstraints(width: size));
+
+    canvas.drawParagraph(paragraph, Offset(0, size / 2 - paragraph.height / 2));
+
+    final ui.Image img = await pictureRecorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
+    final ByteData? data = await img.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null) {
+      return BitmapDescriptor.defaultMarker;
+    }
+    return BitmapDescriptor.fromBytes(data.buffer.asUint8List());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +260,7 @@ class _MapScreenState extends State<MapScreen>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     )..forward();
+    _prepareDataFuture = _prepareData();
     _checkPermissionAndInitialize();
   }
 
@@ -397,279 +596,97 @@ class _MapScreenState extends State<MapScreen>
 
   // map_screen.dart
 
+  // map_screen.dart
+
   Widget buildMapWidget(BuildContext context) {
     return legacy.ChangeNotifierProvider(
       create: (_) => MapController(),
       child: FutureBuilder<List<dynamic>>(
-        // Prepare data: wait for maps and users, then generate icons for relationships.
-        future: _prepareData(),
+        future: _prepareDataFuture,
         builder: (context, snap) {
           if (snap.hasError) {
-            // If waitForMaps throws on web, show a clear message instead of crashing.
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 36.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'エラーが発生しました。',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'このページでは Google マップが正しく読み込まれませんでした。JavaScript コンソールで技術情報を確認してください。\n(${snap.error})',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return Center(child: Text('エラー: ${snap.error}'));
           }
-
           if (!snap.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppTheme.blue500),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
-          final BitmapDescriptor? meIcon = snap.data!.length > 2
-              ? snap.data![2] as BitmapDescriptor?
-              : null;
+          final BitmapDescriptor? meIcon = snap.data![2] as BitmapDescriptor?;
 
-          // Firestoreからリアルタイムでユーザー位置情報を取得
           return StreamBuilder<List<UserEntity>>(
             stream: FirebaseUserRepository().watchAllUsersWithLocations(),
             builder: (context, userSnapshot) {
-              final users = userSnapshot.data ?? [];
+              // Streamから最新のユーザーリストを受け取り、_allUsersを更新
+              if (userSnapshot.hasData) {
+                _allUsers = userSnapshot.data!;
+                // 最初のマーカー計算をトリガー
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _updateVisibleMarkers(icons);
+                });
+              }
 
               return ValueListenableBuilder<LatLng?>(
                 valueListenable: LocationService().currentAverage,
                 builder: (context, myAveragedLocation, _) {
-                  // 動的にユーザーアイコンを生成（新しいユーザーがログインした場合に対応）
-                  final Set<String> newUserIds = users.map((u) => u.id).toSet();
-                  final Set<String> existingUserIds = icons.keys.toSet();
-                  final Set<String> missingUserIds = newUserIds.difference(
-                    existingUserIds,
-                  );
-
-                  // 新しいユーザーのアイコンを非同期で生成
-                  for (final userId in missingUserIds) {
-                    final user = users.firstWhere((u) => u.id == userId);
-                    _markerForUser(user).then((icon) {
-                      if (mounted) {
-                        setState(() {
-                          icons[userId] = icon;
-                        });
-                      }
-                    });
+                  // 自分のマーカーだけをここで生成
+                  final myMarkers = <Marker>{};
+                  if (myAveragedLocation != null && meIcon != null) {
+                    myMarkers.add(
+                      Marker(
+                        markerId: const MarkerId('me'),
+                        position: myAveragedLocation,
+                        icon: meIcon,
+                        anchor:
+                            _userIconAnchors['__me__'] ??
+                            const Offset(0.5, 0.34),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MyProfileScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    );
                   }
 
-                  // Prepare meId-based intimacy stream
-                  final String? meId = FirebaseAuth.instance.currentUser?.uid;
-                  final Stream<Map<String, int?>> intimacyStream = meId != null
-                      ? IntimacyCalculator().watchIntimacyMap(meId)
-                      : Stream<Map<String, int?>>.value({});
+                  // Decide initial camera center
+                  LatLng initialCenter;
+                  if (myAveragedLocation != null) {
+                    initialCenter = myAveragedLocation;
+                  } else if (_allUsers.isNotEmpty) {
+                    initialCenter = LatLng(
+                      _allUsers.first.lat!,
+                      _allUsers.first.lng!,
+                    );
+                  } else {
+                    initialCenter = const LatLng(35.6895, 139.6917); // Fallback
+                  }
 
-                  return StreamBuilder<Map<String, int?>>(
-                    stream: intimacyStream,
-                    builder: (context, intimacySnap) {
-                      final intimacyMap = intimacySnap.data ?? {};
-
-                      final markers = <Marker>{};
-                      final Set<Circle> circles = {};
-                      final Set<Polyline> polylines = {};
-
-                      if (myAveragedLocation != null) {
-                        final Offset meAnchor =
-                            _userIconAnchors['__me__'] ??
-                            const Offset(0.5, 0.34);
-                        markers.add(
-                          Marker(
-                            markerId: const MarkerId('me'),
-                            position: myAveragedLocation,
-                            icon:
-                                meIcon ??
-                                BitmapDescriptor.defaultMarkerWithHue(
-                                  BitmapDescriptor.hueAzure,
-                                ),
-                            anchor: Offset(meAnchor.dx, meAnchor.dy),
-                            infoWindow: InfoWindow.noText,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MyProfileScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-
-                        // ▼▼▼ 修正箇所①：自分の円をコメントアウト ▼▼▼
-                        /*
-                      circles.add(Circle(
-                        circleId: const CircleId('me_circle'),
-                        center: myAveragedLocation,
-                        radius: 50,
-                        fillColor: const Color(0x553B82F6),
-                        strokeColor: const Color(0xFF3B82F6),
-                        strokeWidth: 2,
-                      ));
-                      */
+                  return GoogleMap(
+                    style: _noLabelsMapStyle,
+                    initialCameraPosition: CameraPosition(
+                      target: initialCenter,
+                      zoom: _currentZoom,
+                    ),
+                    markers: _visibleMarkers.union(
+                      myMarkers,
+                    ), // 計算済みのマーカーと自分のマーカーを表示
+                    circles: const {}, // 円は使いません
+                    polylines: const {}, // ポリラインも一旦無効化
+                    myLocationEnabled: false,
+                    myLocationButtonEnabled: false,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                    },
+                    onCameraIdle: () async {
+                      // 地図の操作が終わったら、ズームレベルを更新してマーカーを再計算
+                      if (_mapController != null) {
+                        _currentZoom = await _mapController!.getZoomLevel();
+                        _updateVisibleMarkers(icons);
                       }
-
-                      for (final u in users) {
-                        if (u.lat == null || u.lng == null) continue;
-                        final Offset anchor =
-                            _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-                        markers.add(
-                          Marker(
-                            markerId: MarkerId(u.id),
-                            position: LatLng(u.lat!, u.lng!),
-                            icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-                            anchor: Offset(anchor.dx, anchor.dy),
-                            infoWindow: InfoWindow.noText,
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => MapProfileModal(user: u),
-                              );
-                            },
-                          ),
-                        );
-
-                        // ▼▼▼ 修正箇所②：他のユーザーの円をコメントアウト ▼▼▼
-                        /*
-                      final int? intimacyLevel = intimacyMap[u.id];
-                      if (intimacyLevel == 0) {
-                        circles.add(Circle(
-                          circleId: CircleId('intimacy_circle_${u.id}'),
-                          center: LatLng(u.lat!, u.lng!),
-                          radius: 30,
-                          fillColor: const Color(0x80FFFFFF),
-                          strokeColor: const Color(0x80FFFFFF),
-                          strokeWidth: 1,
-                        ));
-                      } else if (intimacyLevel != null && intimacyLevel > 0) {
-                        final Color lvlColor = _colorForIntimacyLevel(intimacyLevel);
-                        final int stroke = _circleStrokeWidthForLevel(intimacyLevel);
-                        circles.add(Circle(
-                          circleId: CircleId('intimacy_circle_${u.id}'),
-                          center: LatLng(u.lat!, u.lng!),
-                          radius: 40,
-                          fillColor: lvlColor.withValues(alpha: 0.18),
-                          strokeColor: lvlColor,
-                          strokeWidth: stroke,
-                        ));
-                      }
-                      */
-
-                        // ポリラインのロジックは残す
-                        final int? intimacyLevel =
-                            intimacyMap[u.id]; // この行はポリラインでも使うため残す
-                        if (myAveragedLocation != null) {
-                          if (intimacyLevel != null) {
-                            if (intimacyLevel >= 2) {
-                              final styleColor = _polylineColorForIntimacyLevel(
-                                intimacyLevel,
-                              );
-                              final width = _polylineWidthForIntimacyLevel(
-                                intimacyLevel,
-                              );
-                              polylines.add(
-                                Polyline(
-                                  polylineId: PolylineId('conn_${u.id}'),
-                                  points: [
-                                    myAveragedLocation,
-                                    LatLng(u.lat!, u.lng!),
-                                  ],
-                                  color: styleColor,
-                                  width: width,
-                                  jointType: JointType.round,
-                                  startCap: Cap.roundCap,
-                                  endCap: Cap.roundCap,
-                                ),
-                              );
-                            }
-                          } else {
-                            if (u.relationship != Relationship.passingMaybe) {
-                              final styleColor = _polylineColorForRelationship(
-                                u.relationship,
-                              );
-                              final width = _polylineWidthForRelationship(
-                                u.relationship,
-                              );
-                              polylines.add(
-                                Polyline(
-                                  polylineId: PolylineId('conn_${u.id}'),
-                                  points: [
-                                    myAveragedLocation,
-                                    LatLng(u.lat!, u.lng!),
-                                  ],
-                                  color: styleColor,
-                                  width: width,
-                                  jointType: JointType.round,
-                                  startCap: Cap.roundCap,
-                                  endCap: Cap.roundCap,
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      }
-
-                      // Decide initial camera center
-                      LatLng initialCenter;
-                      if (myAveragedLocation != null) {
-                        initialCenter = myAveragedLocation;
-                      } else {
-                        final initialUser = users.firstWhere(
-                          (u) => u.lat != null && u.lng != null,
-                          orElse: () => UserEntity(
-                            id: 'you',
-                            name: 'You',
-                            bio: '',
-                            avatarUrl: null,
-                            relationship: Relationship.none,
-                            lat: 35.6895,
-                            lng: 139.6917,
-                          ),
-                        );
-                        initialCenter = LatLng(
-                          initialUser.lat!,
-                          initialUser.lng!,
-                        );
-                      }
-
-                      return GoogleMap(
-                        style: _noLabelsMapStyle,
-                        initialCameraPosition: CameraPosition(
-                          target: initialCenter,
-                          zoom: 14,
-                        ),
-                        markers: markers,
-                        circles: circles,
-                        polylines: polylines,
-                        myLocationEnabled: false,
-                        myLocationButtonEnabled: false,
-                        onMapCreated: (controller) {
-                          _mapController = controller;
-                        },
-                      );
                     },
                   );
                 },
