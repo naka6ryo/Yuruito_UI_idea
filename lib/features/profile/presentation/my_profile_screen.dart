@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../settings/presentation/settings_screen.dart';
@@ -19,9 +20,11 @@ class MyProfileScreen extends StatefulWidget {
 class _MyProfileScreenState extends State<MyProfileScreen> {
   final _auth = FirebaseAuth.instance;
   final _userRepo = FirebaseUserRepository();
+  final _firestore = FirebaseFirestore.instance;
   
   UserEntity? _currentUser;
   bool _isLoading = true;
+  Map<String, dynamic>? _latestAnswers; // from users/{uid}.profileAnswers or latest history
 
   @override
   void initState() {
@@ -34,8 +37,40 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
       final currentUser = _auth.currentUser;
       if (currentUser != null) {
         final user = await _userRepo.fetchById(currentUser.uid);
+        // Load latest profileAnswers, or fallback to latest questionnaire history
+        Map<String, dynamic>? answers;
+        try {
+          final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+          final data = userDoc.data();
+          if (data != null && data['profileAnswers'] is Map<String, dynamic>) {
+            answers = Map<String, dynamic>.from(data['profileAnswers']);
+          } else {
+            // try latest history
+            final hist = await _firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .collection('questionnaires')
+                .orderBy('createdAt', descending: true)
+                .limit(1)
+                .get();
+            if (hist.docs.isNotEmpty) {
+              final h = hist.docs.first.data();
+              answers = {
+                // map history keys to q1..q6 for rendering convenience
+                'q1': h['one_word'] ?? '',
+                'q2': h['favorite_food'] ?? '',
+                'q3': h['like_work'] ?? '',
+                'q4': h['like_taste_sushi'] ?? '',
+                'q5': h['like_music_genre'] ?? '',
+                'q6': h['how_do_you_use_the_time'] ?? '',
+              };
+            }
+          }
+        } catch (_) {}
+
         setState(() {
           _currentUser = user;
+          _latestAnswers = answers;
           _isLoading = false;
         });
       } else {
@@ -193,99 +228,151 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 名前
-              Text(
-                _currentUser!.name.isNotEmpty ? _currentUser!.name : 'あなた',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
-              const SizedBox(height: 8),
+                      // プロフィール詳細情報（Firestore回答を反映）
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'プロフィール情報',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildProfileInfoCard(
+                              'あなたを表す一言は？',
+                              _latestAnswers?['q1'] ?? 'のんびり過ごしてます。',
+                              Icons.mood,
+                              Colors.blue,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileInfoCard(
+                              'つい頼んでしまう、好きな食べ物は？',
+                              _latestAnswers?['q2'] ?? 'ラーメン',
+                              Icons.restaurant,
+                              Colors.orange,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileInfoCard(
+                              '最近、夢中になっている作品は？',
+                              _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」',
+                              Icons.movie,
+                              Colors.purple,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileInfoCard(
+                              'よく聴く、好きな音楽のジャンルは？',
+                              _latestAnswers?['q5'] ?? 'インディーズロック',
+                              Icons.music_note,
+                              Colors.green,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileInfoCard(
+                              'お寿司屋さんで、これだけは外せないネタは？',
+                              _latestAnswers?['q4'] ?? 'サーモン',
+                              Icons.set_meal,
+                              Colors.red,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildProfileInfoCard(
+                              'もし明日から寝なくても平気になったら、その時間をどう使う？',
+                              _latestAnswers?['q6'] ?? '見たかった映画を全部見る',
+                              Icons.schedule,
+                              Colors.teal,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
 
-              // ユーザーID
-              Text('ID: ${_auth.currentUser?.uid.substring(0, 8) ?? 'unknown'}...', style: const TextStyle(fontSize: 14, color: Colors.grey)),
-
-              if (_currentUser!.bio.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text('"${_currentUser!.bio}"', style: const TextStyle(fontSize: 16, color: Colors.black87, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // アカウント情報
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('アカウント情報', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87)),
-            const SizedBox(height: 12),
-            _buildInfoRow('メールアドレス', _auth.currentUser?.email ?? '未設定'),
-            const SizedBox(height: 8),
-            _buildInfoRow('登録日', _formatDate(_auth.currentUser?.metadata.creationTime)),
-            const SizedBox(height: 8),
-            _buildInfoRow('最終ログイン', _formatDate(_auth.currentUser?.metadata.lastSignInTime)),
-          ]),
-        ),
-        const SizedBox(height: 24),
-
-        // プロフィール詳細情報
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2)),
-          ]),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('プロフィール情報', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87)),
-            const SizedBox(height: 16),
-            _buildProfileInfoCard('あなたを表す一言は？', _currentUser?.bio.isNotEmpty == true ? _currentUser!.bio : 'のんびり過ごしてます。', Icons.mood, Colors.blue),
-            const SizedBox(height: 12),
-            _buildProfileInfoCard('つい頼んでしまう、好きな食べ物は？', 'ラーメン', Icons.restaurant, Colors.orange),
-            const SizedBox(height: 12),
-            _buildProfileInfoCard('最近、夢中になっている作品は？', '海外ドラマ「フレンズ」', Icons.movie, Colors.purple),
-            const SizedBox(height: 12),
-            _buildProfileInfoCard('よく聴く、好きな音楽のジャンルは？', 'インディーズロック', Icons.music_note, Colors.green),
-            const SizedBox(height: 12),
-            _buildProfileInfoCard('お寿司屋さんで、これだけは外せないネタは？', 'サーモン', Icons.set_meal, Colors.red),
-            const SizedBox(height: 12),
-            _buildProfileInfoCard('もし明日から寝なくても平気になったら、その時間をどう使う？', '見たかった映画を全部見る', Icons.schedule, Colors.teal),
-          ]),
-        ),
-        const SizedBox(height: 24),
-
-        // クイック設定
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2)),
-          ]),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('クイック設定', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87)),
-            const SizedBox(height: 12),
-            ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.edit, color: Colors.blue), title: const Text('プロフィールを編集'), trailing: const Icon(Icons.chevron_right, color: Colors.grey), onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileSettingsScreen()));
-            }),
-            ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.privacy_tip, color: Colors.orange), title: const Text('プライバシー設定'), trailing: const Icon(Icons.chevron_right, color: Colors.grey), onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()));
-            }),
-            ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.settings, color: Colors.grey), title: const Text('詳細設定'), trailing: const Icon(Icons.chevron_right, color: Colors.grey), onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            }),
-          ]),
-        ),
-      ],
+                      // クイック設定（そのまま）
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'クイック設定',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.edit, color: Colors.blue),
+                              title: const Text('プロフィールを編集'),
+                              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const ProfileSettingsScreen()),
+                                );
+                              },
+                            ),
+                            
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.privacy_tip, color: Colors.orange),
+                              title: const Text('プライバシー設定'),
+                              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
+                                );
+                              },
+                            ),
+                            
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.settings, color: Colors.grey),
+                              title: const Text('詳細設定'),
+                              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 

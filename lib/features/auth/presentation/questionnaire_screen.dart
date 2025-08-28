@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -37,6 +39,45 @@ setState(() {
 index = next;
 ctrl.text = answers[index] ?? '';
 });
+}
+
+Future<void> _completeAndSave() async {
+  answers[index] = ctrl.text;
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      // 1) users/{uid} に最新回答を上書き（表示用）
+      final latestData = <String, dynamic>{
+        'profileAnswers': {
+          'q1': answers[0] ?? '',
+          'q2': answers[1] ?? '',
+          'q3': answers[2] ?? '',
+          'q4': answers[3] ?? '',
+          'q5': answers[4] ?? '',
+          'q6': answers[5] ?? '',
+        },
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      final users = FirebaseFirestore.instance.collection('users');
+      await users.doc(uid).set(latestData, SetOptions(merge: true));
+
+      // 2) users/{uid}/questionnaires に履歴を追加（質問ID付き）
+      final historyRef = users.doc(uid).collection('questionnaires').doc();
+      await historyRef.set({
+        'one_word': answers[0] ?? '',
+        'favorite_food': answers[1] ?? '',
+        'like_work': answers[2] ?? '',
+        'like_taste_sushi': answers[3] ?? '',
+        'like_music_genre': answers[4] ?? '',
+        'how_do_you_use_the_time': answers[5] ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+  } catch (e) {
+    // ignore write errors, still navigate
+  }
+  if (!mounted) return;
+  Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
 }
 
 
@@ -80,8 +121,8 @@ Widget build(BuildContext context) {
 													textAlign: TextAlign.center,
 													decoration: const InputDecoration(filled: true),
 												),
-											],
-										),
+										],
+									),
 									),
 									Row(
 										children: [
@@ -94,7 +135,7 @@ Widget build(BuildContext context) {
 													if (index < questions.length - 1) {
 														_goto(index + 1);
 													} else {
-														Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
+														_completeAndSave();
 													}
 												},
 												child: Text(index == questions.length - 1 ? '完了' : '次へ'),
@@ -109,6 +150,6 @@ Widget build(BuildContext context) {
 			),
 		),
 	);
-}
+	}
 
 }
