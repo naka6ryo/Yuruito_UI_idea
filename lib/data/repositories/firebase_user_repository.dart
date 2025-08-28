@@ -85,7 +85,7 @@ class FirebaseUserRepository implements UserRepository {
             }
           }
         } catch (e) {
-          print('位置情報の取得エラー (${doc.id}): $e');
+          debugPrint('位置情報の取得エラー (${doc.id}): $e');
         }
 
         final user = UserEntity(
@@ -103,7 +103,7 @@ class FirebaseUserRepository implements UserRepository {
 
       return users;
     } catch (e) {
-      print('Error fetching all users: $e');
+      debugPrint('Error fetching all users: $e');
       return [];
     }
   }
@@ -120,9 +120,9 @@ class FirebaseUserRepository implements UserRepository {
         'updatedAt': DateTime.now().toIso8601String(),
       }, SetOptions(merge: true));
       
-      print('✅ ユーザー情報をFirestoreに保存: ${user.id}');
+      debugPrint('✅ ユーザー情報をFirestoreに保存: ${user.id}');
     } catch (e) {
-      print('❌ ユーザー情報の保存エラー: $e');
+      debugPrint('❌ ユーザー情報の保存エラー: $e');
     }
   }
 
@@ -147,8 +147,8 @@ class FirebaseUserRepository implements UserRepository {
           'updatedAt': DateTime.now().toIso8601String(),
         });
         
-        print('✅ 新規ユーザーをFirestoreに保存: ${currentUser.uid}');
-        print('📧 ユーザー情報: 名前=${currentUser.displayName ?? currentUser.email}, メール=${currentUser.email}');
+        debugPrint('✅ 新規ユーザーをFirestoreに保存: ${currentUser.uid}');
+        debugPrint('📧 ユーザー情報: 名前=${currentUser.displayName ?? currentUser.email}, メール=${currentUser.email}');
       } else {
         // 既存ユーザーの場合、オンライン状態を更新
         await _firestore.collection('users').doc(currentUser.uid).update({
@@ -156,10 +156,10 @@ class FirebaseUserRepository implements UserRepository {
           'lastSeen': DateTime.now().toIso8601String(),
           'updatedAt': DateTime.now().toIso8601String(),
         });
-        print('📱 ユーザーオンライン状態更新: ${currentUser.uid}');
+        debugPrint('📱 ユーザーオンライン状態更新: ${currentUser.uid}');
       }
     } catch (e) {
-      print('❌ ユーザー初期化エラー: $e');
+      debugPrint('❌ ユーザー初期化エラー: $e');
     }
   }
 
@@ -175,9 +175,9 @@ class FirebaseUserRepository implements UserRepository {
         'updatedAt': DateTime.now().toIso8601String(),
       });
       
-      print('📱 ユーザーオフライン状態更新: ${currentUser.uid}');
+      debugPrint('📱 ユーザーオフライン状態更新: ${currentUser.uid}');
     } catch (e) {
-      print('❌ オフライン状態更新エラー: $e');
+      debugPrint('❌ オフライン状態更新エラー: $e');
     }
   }
 
@@ -207,7 +207,7 @@ class FirebaseUserRepository implements UserRepository {
             }
           }
         } catch (e) {
-          print('位置情報の取得エラー (${doc.id}): $e');
+          debugPrint('位置情報の取得エラー (${doc.id}): $e');
         }
 
         final user = UserEntity(
