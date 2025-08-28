@@ -2,11 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/firebase_chat_service.dart';
 import '../widgets/intimacy_message_widget.dart';
-import '../../map/ShinmituDo/intimacy_calculator.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String name;
@@ -27,7 +25,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // Firestore実装に差し替え
   final ChatService _chatService = FirebaseChatService();
   final ScrollController _scrollController = ScrollController();
-  final IntimacyCalculator _intimacyCalculator = IntimacyCalculator();
 
   final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> messages = [];
   // TextEditingControllerは削除（IntimacyMessageWidgetが独自に管理）
@@ -98,7 +95,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     });
     
     // If an initial message/sticker was provided, send it directly without adding to UI first
-    if (widget.initialMessage != null) {
+    if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
       final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
       try {
         await _chatService.sendMessage(_roomId, msg);
@@ -213,6 +210,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               onSendMessage: (message, isSticker) async {
                 try {
                   final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
+                  
+                  // 送信前にUIに追加（即座に表示）
+                  setState(() {
+                    messages.add((
+                      text: message,
+                      sent: true,
+                      sticker: isSticker,
+                      from: 'Me',
+                      timestamp: DateTime.now()
+                    ));
+                  });
+                  
+                  // 送信処理
                   await _chatService.sendMessage(_roomId, msg);
                   
                   // 送信後、リストの下部にスクロール
@@ -225,6 +235,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     );
                   }
                 } catch (e) {
+                  // エラー時は送信したメッセージを削除
+                  setState(() {
+                    messages.removeWhere((m) => 
+                      m.text == message && 
+                      m.sent == true && 
+                      m.sticker == isSticker && 
+                      m.from == 'Me'
+                    );
+                  });
+                  
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('送信に失敗しました: $e')),

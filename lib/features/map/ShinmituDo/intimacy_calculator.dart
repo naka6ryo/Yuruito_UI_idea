@@ -84,6 +84,7 @@ class IntimacyCalculator {
     } else if (encounterSeconds > 60 && meetCount > 0) {
       return 1;
     } else {
+      debugPrint('❌ レベル0: encounterSeconds=$encounterSeconds, meetCount=$meetCount');
       return 0;
     }
   }

@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../profile/presentation/other_user_profile_screen.dart';
 import 'chat_room_screen.dart';
-import '../../../data/repositories/firebase_user_repository.dart';
-import '../../../domain/entities/user.dart';
-import '../../../domain/entities/relationship.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/firebase_chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
-import 'chat_room_screen.dart';
 
 
 class ChatListScreen extends StatefulWidget {
@@ -19,7 +15,6 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-	late Future<List<UserEntity>> _future;
 	final ChatService _chatService = FirebaseChatService();
 
 	@override
@@ -36,7 +31,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 		await Future.delayed(const Duration(milliseconds: 300));
 		
 		setState(() {
-			_future = FirebaseUserRepository().fetchAcquaintances(); // excludes passingMaybe
+			// 画面を再構築してデータを再取得
 		});
 		
 		debugPrint('✅ チャット画面のデータ再取得完了');
@@ -83,15 +78,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
 						itemBuilder: (context, i) {
 							final conv = conversations[i];
 							return ListTile(
-								onTap: () => Navigator.of(context).push(
-									MaterialPageRoute(
-										builder: (_) => ChatRoomScreen(
-											name: conv.peerName,
-											status: '友達',
-											conversationId: conv.conversationId,
-										),
-									),
-								),
+								onTap: () async {
+									final peerUid = await _getPeerUidFromConversation(meId, conv.conversationId);
+									if (mounted) {
+										Navigator.of(context).push(
+											MaterialPageRoute(
+												builder: (_) => ChatRoomScreen(
+													name: conv.peerName,
+													status: '友達',
+													conversationId: conv.conversationId,
+													peerUid: peerUid,
+												),
+											),
+										);
+									}
+								},
 								leading: CircleAvatar(
 									radius: 24,
 									backgroundColor: Colors.blue,
@@ -211,6 +212,39 @@ class _ChatListScreenState extends State<ChatListScreen> {
 
 	Future<int?> _getIntimacyLevel(String meId, String conversationId) async {
 		try {
+			// まず会話ドキュメントから親密度レベルを取得
+			final conversationDoc = await FirebaseFirestore.instance
+				.collection('conversations')
+				.doc(conversationId)
+				.get();
+			
+			if (conversationDoc.exists) {
+				final data = conversationDoc.data();
+				final storedLevel = data?['intimacyLevel'] as int?;
+				if (storedLevel != null) {
+					return storedLevel;
+				}
+			}
+			
+			// フォールバック: conversationIdから相手のIDを取得して計算
+			final parts = conversationId.split('_');
+			if (parts.length >= 2) {
+				final user1 = parts[0];
+				final user2 = parts[1];
+				final otherId = user1 == meId ? user2 : user1;
+				
+				if (otherId.isNotEmpty && otherId != meId) {
+					return await IntimacyCalculator().getIntimacyLevel(meId, otherId);
+				}
+			}
+		} catch (e) {
+			debugPrint('親密度レベル取得エラー: $e');
+		}
+		return null;
+	}
+
+	Future<String?> _getPeerUidFromConversation(String meId, String conversationId) async {
+		try {
 			// conversationIdから相手のIDを取得
 			final parts = conversationId.split('_');
 			if (parts.length >= 2) {
@@ -223,11 +257,11 @@ class _ChatListScreenState extends State<ChatListScreen> {
 				final otherId = user1 == meId ? user2 : user1;
 				
 				if (otherId.isNotEmpty && otherId != meId) {
-					return await IntimacyCalculator().getIntimacyLevel(meId, otherId);
+					return otherId;
 				}
 			}
 		} catch (e) {
-			debugPrint('親密度レベル取得エラー: $e');
+			debugPrint('peerUid取得エラー: $e');
 		}
 		return null;
 	}
@@ -261,63 +295,4 @@ class _ChatListScreenState extends State<ChatListScreen> {
 				return '非表示';
 		}
 	}
-
-		Color _colorForRelationship(Relationship r) {
-			switch (r) {
-				case Relationship.close:
-					return const Color(0xFFA78BFA);
-				case Relationship.friend:
-					return const Color(0xFF86EFAC);
-				case Relationship.acquaintance:
-					return const Color(0xFFFDBA74);
-				case Relationship.passingMaybe:
-					return const Color(0xFFF9A8D4);
-				default:
-					return Colors.indigo;
-			}
-		}
-
-		Widget _buildIntimacyBadge(String label, int level) {
-			Color badgeColor;
-			Color textColor;
-			
-			switch (level) {
-				case 1:
-					badgeColor = Colors.blue.withValues(alpha: 0.2);
-					textColor = Colors.blue;
-					break;
-				case 2:
-					badgeColor = Colors.green.withValues(alpha: 0.2);
-					textColor = Colors.green;
-					break;
-				case 3:
-					badgeColor = Colors.orange.withValues(alpha: 0.2);
-					textColor = Colors.orange;
-					break;
-				case 4:
-					badgeColor = Colors.red.withValues(alpha: 0.2);
-					textColor = Colors.red;
-					break;
-				default:
-					badgeColor = Colors.grey.withValues(alpha: 0.2);
-					textColor = Colors.grey;
-			}
-
-			return Container(
-				padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-				decoration: BoxDecoration(
-					color: badgeColor,
-					borderRadius: BorderRadius.circular(12),
-					border: Border.all(color: textColor, width: 1),
-				),
-				child: Text(
-					label,
-					style: TextStyle(
-						fontSize: 10,
-						color: textColor,
-						fontWeight: FontWeight.w500,
-					),
-				),
-			);
-		}
 }

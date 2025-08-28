@@ -3,8 +3,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
+import '../../../domain/services/chat_service.dart';
+import '../../../data/services/firebase_chat_service.dart';
 import '../../chat/presentation/chat_room_screen.dart';
 
 class OtherUserProfileScreen extends StatefulWidget {
@@ -434,18 +437,22 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                            Navigator.of(context).push(
-                               MaterialPageRoute(
-                                 builder: (_) => ChatRoomScreen(
-                                   name: widget.user.name,
-                                   status: widget.user.relationship.label,
-                                   peerUid: widget.user.id,
-                                   conversationId: widget.user.id, // 既存実装に合わせて同一IDを渡す
-                                 ),
-                             ),
-                             );
-                           },
+                                            onPressed: () async {
+                        final currentUser = FirebaseAuth.instance.currentUser;
+                        if (currentUser != null) {
+                          final conversationId = await FirebaseChatService().findOrCreateConversation(currentUser.uid, widget.user.id);
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatRoomScreen(
+                                name: widget.user.name,
+                                status: widget.user.relationship.label,
+                                peerUid: widget.user.id,
+                                conversationId: conversationId, // 正しい会話IDを渡す
+                              ),
+                            ),
+                          );
+                        }
+                      },
                       icon: const Icon(Icons.chat_bubble_outline),
                       label: const Text('メッセージを送る'),
                       style: ElevatedButton.styleFrom(
