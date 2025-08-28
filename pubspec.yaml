@@ -40,6 +40,8 @@ dependencies:
   provider: ^6.1.2
   google_maps_flutter: ^2.4.0
 
+  lottie: ^2.4.0
+
   geolocator: ^14.0.2
   firebase_core: ^4.0.0
   cloud_firestore: ^6.0.0
@@ -74,10 +76,12 @@ flutter:
   #   - images/a_dot_ham.jpeg
 
   assets:
-    - assets/login_logo.png
-    - images/select_icon/
-    - lib/images/select_icon/
-    - lib/images/icon/
+  - assets/login_logo.png
+  - assets/load.json
+  - assets/images/
+  - images/select_icon/
+  - lib/images/select_icon/
+  - lib/images/icon/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
