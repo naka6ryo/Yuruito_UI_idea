@@ -480,8 +480,9 @@ class _MapScreenState extends State<MapScreen>
                       ? IntimacyCalculator().watchIntimacyMap(meId)
                       : Stream<Map<String, int?>>.value({});
 
-feature/profile
-                  return StreamBuilder<Map<String, int?>>(stream: intimacyStream, builder: (context, intimacySnap) {
+                  return StreamBuilder<Map<String, int?>>(
+                    stream: intimacyStream,
+                    builder: (context, intimacySnap) {
                     final intimacyMap = intimacySnap.data ?? {};
 
                     final markers = <Marker>{};
@@ -514,8 +515,6 @@ feature/profile
                     for (final u in users) {
                       if (u.lat == null || u.lng == null) continue;
                       final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-                      // Use the computed anchor if available, otherwise bottom-center.
-                      // Render marker
                       markers.add(Marker(
                         markerId: MarkerId(u.id),
                         position: LatLng(u.lat!, u.lng!),
@@ -532,7 +531,6 @@ feature/profile
                         },
                       ));
 
-                      // Render intimacy circle based on server value (level 0..4)
                       final int? intimacyLevel = intimacyMap[u.id];
                       if (intimacyLevel == 0) {
                         circles.add(Circle(
@@ -556,156 +554,56 @@ feature/profile
                         ));
                       }
 
-
                       if (myAveragedLocation != null) {
-                        final Offset meAnchor =
-                            _userIconAnchors['__me__'] ??
-                            const Offset(0.5, 0.34);
-                        markers.add(
-                          Marker(
-                            markerId: const MarkerId('me'),
-                            position: myAveragedLocation,
-                            icon:
-                                meIcon ??
-                                BitmapDescriptor.defaultMarkerWithHue(
-                                  BitmapDescriptor.hueAzure,
-                                ),
-                            anchor: Offset(meAnchor.dx, meAnchor.dy),
-                            infoWindow: InfoWindow.noText,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const MyProfileScreen(),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-
-                        /* <- ここからコメントアウト
-                        circles.add(
-                          Circle(
-                            circleId: const CircleId('me_circle'),
-                            center: myAveragedLocation,
-                            radius: 50,
-                            fillColor: const Color(0x553B82F6),
-                            strokeColor: const Color(0xFF3B82F6),
-                            strokeWidth: 2,
-                          ),
-                        );
-                        */
-                      }
-
-                      for (final u in users) {
-                        if (u.lat == null || u.lng == null) continue;
-                        final Offset anchor =
-                            _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-                        // Use the computed anchor if available, otherwise bottom-center.
-                        // Render marker
-                        markers.add(
-                          Marker(
-                            markerId: MarkerId(u.id),
-                            position: LatLng(u.lat!, u.lng!),
-                            icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-                            anchor: Offset(anchor.dx, anchor.dy),
-                            infoWindow: InfoWindow.noText,
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => MapProfileModal(user: u),
-                              );
-                            },
-                          ),
-                        );
-
-                        // Render intimacy circle based on server value (level 0..4)
-                        final int? intimacyLevel = intimacyMap[u.id];
-                        /* <- ここからコメントアウト
-                        if (intimacyLevel == 0) {
-                          circles.add(
-                            Circle(
-                              circleId: CircleId('intimacy_circle_${u.id}'),
-                              center: LatLng(u.lat!, u.lng!),
-                              radius: 30,
-                              fillColor: const Color(0x80FFFFFF),
-                              strokeColor: const Color(0x80FFFFFF),
-                              strokeWidth: 1,
-                            ),
-                          );
-                        } else if (intimacyLevel != null && intimacyLevel > 0) {
-                          final Color lvlColor = _colorForIntimacyLevel(
-                            intimacyLevel,
-                          );
-                          final int stroke = _circleStrokeWidthForLevel(
-                            intimacyLevel,
-                          );
-                          circles.add(
-                            Circle(
-                              circleId: CircleId('intimacy_circle_${u.id}'),
-                              center: LatLng(u.lat!, u.lng!),
-                              radius: 40,
-                              fillColor: lvlColor.withOpacity(0.18),
-                              strokeColor: lvlColor,
-                              strokeWidth: stroke,
-                            ),
-                          );
-                        }
-                        */ // <- ここまでコメントアウト
-
-                        // Draw connecting polyline from me -> user based on intimacy or fallback to relationship
-                        if (myAveragedLocation != null) {
-                          if (intimacyLevel != null) {
-                            if (intimacyLevel >= 2) {
-                              final styleColor = _polylineColorForIntimacyLevel(
-                                intimacyLevel,
-                              );
-                              final width = _polylineWidthForIntimacyLevel(
-                                intimacyLevel,
-                              );
-                              polylines.add(
-                                Polyline(
-                                  polylineId: PolylineId('conn_${u.id}'),
-                                  points: [
-                                    myAveragedLocation,
-                                    LatLng(u.lat!, u.lng!),
-                                  ],
-                                  color: styleColor,
-                                  width: width,
-                                  jointType: JointType.round,
-                                  startCap: Cap.roundCap,
-                                  endCap: Cap.roundCap,
-                                ),
-                              );
-                            }
-                          } else {
-                            if (u.relationship != Relationship.passingMaybe) {
-                              final styleColor = _polylineColorForRelationship(
-                                u.relationship,
-                              );
-                              final width = _polylineWidthForRelationship(
-                                u.relationship,
-                              );
-                              polylines.add(
-                                Polyline(
-                                  polylineId: PolylineId('conn_${u.id}'),
-                                  points: [
-                                    myAveragedLocation,
-                                    LatLng(u.lat!, u.lng!),
-                                  ],
-                                  color: styleColor,
-                                  width: width,
-                                  jointType: JointType.round,
-                                  startCap: Cap.roundCap,
-                                  endCap: Cap.roundCap,
-                                ),
-                              );
-                            }
+                        if (intimacyLevel != null) {
+                          if (intimacyLevel >= 2) {
+                            final styleColor = _polylineColorForIntimacyLevel(
+                              intimacyLevel,
+                            );
+                            final width = _polylineWidthForIntimacyLevel(
+                              intimacyLevel,
+                            );
+                            polylines.add(
+                              Polyline(
+                                polylineId: PolylineId('conn_${u.id}'),
+                                points: [
+                                  myAveragedLocation,
+                                  LatLng(u.lat!, u.lng!),
+                                ],
+                                color: styleColor,
+                                width: width,
+                                jointType: JointType.round,
+                                startCap: Cap.roundCap,
+                                endCap: Cap.roundCap,
+                              ),
+                            );
+                          }
+                        } else {
+                          if (u.relationship != Relationship.passingMaybe) {
+                            final styleColor = _polylineColorForRelationship(
+                              u.relationship,
+                            );
+                            final width = _polylineWidthForRelationship(
+                              u.relationship,
+                            );
+                            polylines.add(
+                              Polyline(
+                                polylineId: PolylineId('conn_${u.id}'),
+                                points: [
+                                  myAveragedLocation,
+                                  LatLng(u.lat!, u.lng!),
+                                ],
+                                color: styleColor,
+                                width: width,
+                                jointType: JointType.round,
+                                startCap: Cap.roundCap,
+                                endCap: Cap.roundCap,
+                              ),
+                            );
                           }
                         }
                       }
+                    }
 
                       // Decide initial camera center
                       LatLng initialCenter;
@@ -879,6 +777,14 @@ class MapProfileModal extends StatefulWidget {
 
 class _MapProfileModalState extends State<MapProfileModal> {
   final ChatService _chatService = FirebaseChatService();
+  final List<({
+    String text,
+    bool sent,
+    bool sticker,
+    String from,
+    DateTime timestamp,
+  })> _messages = [];
+  bool _isLoading = false;
 
 
   @override
@@ -1048,99 +954,93 @@ class _MapProfileModalState extends State<MapProfileModal> {
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _messages.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'まだメッセージがありません\n下から送信してみてください',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: ctrl,
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final message = _messages[index];
-                        final isMe = message.sent;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 4,
+                  : (_messages.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'まだメッセージがありません\n下から送信してみてください',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey),
                           ),
-                          child: Row(
-                            mainAxisAlignment: isMe
-                                ? MainAxisAlignment.end
-                                : MainAxisAlignment.start,
-
-                            children: [
-                              const Text(
-                                '最近のメッセージ (1時間以内)',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                        )
+                      : ListView.builder(
+                          controller: ctrl,
+                          itemCount: _messages.length,
+                          itemBuilder: (context, index) {
+                            final message = _messages[index];
+                            final isMe = message.sent;
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
                               ),
-                              const SizedBox(height: 8),
-                              Container(
-
-                                constraints: BoxConstraints(
-                                  maxWidth:
-                                      MediaQuery.of(context).size.width * 0.7,
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isMe
-                                      ? AppTheme.blue500
-                                      : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(16),
-
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(text),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              child: Row(
+                                mainAxisAlignment: isMe
+                                    ? MainAxisAlignment.end
+                                    : MainAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    constraints: BoxConstraints(
+                                      maxWidth:
+                                          MediaQuery.of(context).size.width *
+                                              0.7,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isMe
+                                          ? AppTheme.blue500
+                                          : Colors.grey[200],
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
-                                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                        ),
-                                        if (textFrom != null)
-                                          FutureBuilder<String>(
-                                            future: _getUserName(textFrom),
-                                            builder: (context, nameSnap) {
-                                              return Text(
-                                                'from: ${nameSnap.data ?? 'Unknown'}',
-                                                style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                              );
-                                            },
+                                          message.text,
+                                          style: TextStyle(
+                                            color: isMe
+                                                ? Colors.white
+                                                : Colors.black,
                                           ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            FutureBuilder<String>(
+                                              future:
+                                                  _getUserName(message.from),
+                                              builder: (context, nameSnap) {
+                                                return Text(
+                                                  'from: ${nameSnap.data ?? 'Unknown'}',
+                                                  style: const TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.grey,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
                                       ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        );
-                      }
-                    }
-                    
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+                            );
+                          },
+                        )),
             ),
 
             // 親密度ベースのメッセージ入力
