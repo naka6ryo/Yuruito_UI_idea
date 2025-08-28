@@ -74,8 +74,13 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
 
-    // On web, render inside the same phone-like framed container used by AppShell
-    if (kIsWeb) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 900.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
+
+    // On web wide viewports, render inside the phone-like framed container used by AppShell.
+    if (isWeb && !isNarrow) {
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0;
       return LayoutBuilder(builder: (context, constraints) {
@@ -103,7 +108,20 @@ class SettingsScreen extends ConsumerWidget {
       });
     }
 
-    return scaffold;
+    // Narrow web viewports and non-web platforms use full-screen scaffold
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6),
+      appBar: scaffold.appBar,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+            child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: scaffold.body!),
+          ),
+        ),
+      ),
+    );
   }
 }
 
