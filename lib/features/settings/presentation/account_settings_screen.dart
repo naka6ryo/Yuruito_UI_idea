@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../data/services/firebase_settings_service.dart';
 
@@ -271,6 +274,56 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Use same phone-like framed layout on web as AppShell
+    if (kIsWeb) {
+      const aspect = 9 / 19.5;
+      const maxPhoneWidth = 384.0;
+
+      return LayoutBuilder(builder: (context, constraints) {
+        final maxH = constraints.maxHeight * 0.95;
+        var width = min(maxPhoneWidth, constraints.maxWidth);
+        var height = width / aspect;
+        if (height > maxH) {
+          height = maxH;
+          width = height * aspect;
+        }
+
+        return Container(
+          color: const Color(0xFFF3F4F6),
+          child: Center(
+            child: Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                appBar: AppBar(
+                  backgroundColor: Colors.white,
+                  elevation: 0.5,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: const Text(
+                    'アカウント設定',
+                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                body: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+              ),
+            ),
+          ),
+        );
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
@@ -287,108 +340,109 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 現在のアカウント情報
-                  _buildSectionHeader('アカウント情報'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          _buildInfoRow('メールアドレス', _profile['email'] ?? '未設定'),
-                          const SizedBox(height: 8),
-                          _buildInfoRow('ユーザーID', _settingsService.currentUserId ?? '未設定'),
-                          const SizedBox(height: 8),
-                          _buildInfoRow('登録日', _formatDate(_profile['createdAt'])),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+          : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+    );
+  }
 
-                  // アカウント変更
-                  _buildSectionHeader('アカウント変更'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.email, color: Colors.blue),
-                          title: const Text('メールアドレスの変更'),
-                          subtitle: const Text('ログイン用のメールアドレスを変更します'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: _showChangeEmailDialog,
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.lock, color: Colors.green),
-                          title: const Text('パスワードの変更'),
-                          subtitle: const Text('ログイン用のパスワードを変更します'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: _showChangePasswordDialog,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // SNS連携（準備中）
-                  _buildSectionHeader('SNS連携'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.link, color: Colors.grey),
-                          title: const Text('Google連携'),
-                          subtitle: const Text('準備中'),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                          onTap: null,
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.link, color: Colors.grey),
-                          title: const Text('Apple連携'),
-                          subtitle: const Text('準備中'),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                          onTap: null,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 危険な操作
-                  _buildSectionHeader('危険な操作'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_forever, color: Colors.red),
-                      title: const Text(
-                        'アカウントを削除',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      subtitle: const Text('すべてのデータが永久に削除されます'),
-                      trailing: const Icon(Icons.chevron_right, color: Colors.red),
-                      onTap: _showDeleteAccountDialog,
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 現在のアカウント情報
+        _buildSectionHeader('アカウント情報'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _buildInfoRow('メールアドレス', _profile['email'] ?? '未設定'),
+                const SizedBox(height: 8),
+                _buildInfoRow('ユーザーID', _settingsService.currentUserId ?? '未設定'),
+                const SizedBox(height: 8),
+                _buildInfoRow('登録日', _formatDate(_profile['createdAt'])),
+              ],
             ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // アカウント変更
+        _buildSectionHeader('アカウント変更'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.email, color: Colors.blue),
+                title: const Text('メールアドレスの変更'),
+                subtitle: const Text('ログイン用のメールアドレスを変更します'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _showChangeEmailDialog,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.lock, color: Colors.green),
+                title: const Text('パスワードの変更'),
+                subtitle: const Text('ログイン用のパスワードを変更します'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _showChangePasswordDialog,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // SNS連携（準備中）
+        _buildSectionHeader('SNS連携'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.grey),
+                title: const Text('Google連携'),
+                subtitle: const Text('準備中'),
+                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                onTap: null,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.link, color: Colors.grey),
+                title: const Text('Apple連携'),
+                subtitle: const Text('準備中'),
+                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                onTap: null,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 危険な操作
+        _buildSectionHeader('危険な操作'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            leading: const Icon(Icons.delete_forever, color: Colors.red),
+            title: const Text(
+              'アカウントを削除',
+              style: TextStyle(color: Colors.red),
+            ),
+            subtitle: const Text('すべてのデータが永久に削除されます'),
+            trailing: const Icon(Icons.chevron_right, color: Colors.red),
+            onTap: _showDeleteAccountDialog,
+          ),
+        ),
+      ],
     );
   }
 
