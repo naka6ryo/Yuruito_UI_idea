@@ -161,11 +161,68 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         );
 
       case 3:
-      case 4:
-        final maxLength = _intimacyLevel == 3 ? 10 : 30;
+        final maxLength = 10;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    maxLength: maxLength,
+                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)],
+                    decoration: InputDecoration(
+                      hintText: 'メッセージを入力...',
+                      counterText: '',
+                      errorText: _controller.text.length > maxLength ? '最大$maxLength文字までです' : null,
+                    ),
+                    onChanged: (text) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    final text = _controller.text.trim();
+                    if (text.isNotEmpty && text.length <= maxLength) {
+                      _sendMessage(text, false);
+                    }
+                  },
+                  icon: Icon(Icons.send, color: AppTheme.blue500),
+                ),
+              ],
+            ),
+          ],
+        );
+
+      case 4:
+        // レベル4: 30文字制限のテキスト + スタンプ
+        const maxLength = 30;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // スタンプ選択
+            const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _stickerOptions.map((sticker) => GestureDetector(
+                onTap: () => _sendMessage(sticker, true),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.scaffoldBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.blue500),
+                  ),
+                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                ),
+              )).toList(),
+            ),
+            const SizedBox(height: 16),
+            // テキスト入力
             Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
@@ -208,6 +265,59 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                 fontSize: 12,
                 color: _controller.text.length > maxLength ? Colors.red : Colors.grey,
               ),
+            ),
+          ],
+        );
+
+      case 5: // レベル5: 無制限テキスト + スタンプ
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // スタンプ選択
+            const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _stickerOptions.map((sticker) => GestureDetector(
+                onTap: () => _sendMessage(sticker, true),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.scaffoldBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.blue500),
+                  ),
+                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                ),
+              )).toList(),
+            ),
+            const SizedBox(height: 16),
+            // テキスト入力（無制限）
+            const Text('メッセージ（制限なし）：', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'メッセージを入力...',
+                      counterText: '',
+                    ),
+                    onChanged: (text) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () {
+                    final text = _controller.text.trim();
+                    if (text.isNotEmpty) {
+                      _sendMessage(text, false);
+                    }
+                  },
+                  icon: Icon(Icons.send, color: AppTheme.blue500),
+                ),
+              ],
             ),
           ],
         );

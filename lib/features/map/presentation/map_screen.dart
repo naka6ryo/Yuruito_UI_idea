@@ -19,6 +19,7 @@ import 'dart:math' as math;
 import '../../chat/widgets/intimacy_message_widget.dart';
 import '../../../domain/services/chat_service.dart';
 import '../../../data/services/firebase_chat_service.dart';
+import '../../chat/presentation/chat_room_screen.dart';
 
 /// MapScreen using Google Maps and showing all users from the repository (no filtering).
 class MapScreen extends StatefulWidget {
@@ -788,7 +789,24 @@ class _MapProfileModalState extends State<MapProfileModal> {
             IntimacyMessageWidget(
               targetUserId: widget.user.id,
               targetUserName: widget.user.name,
-              onSendMessage: _sendMessage,
+              onSendMessage: (message, isSticker) async {
+                await _sendMessage(message, isSticker);
+                // 送信後、実際のDMに遷移
+                if (mounted) {
+                  Navigator.pop(context); // モーダルを閉じる
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatRoomScreen(
+                        name: widget.user.name,
+                        status: widget.user.relationship.label,
+                        peerUid: widget.user.id,
+                        conversationId: widget.user.id,
+                      ),
+                    ),
+                  );
+                }
+              },
             ),
           ],
         ),
