@@ -853,9 +853,16 @@ class _MapProfileModalState extends State<MapProfileModal> {
     super.initState();
   }
 
-  String get _roomId => widget.user.id;
+  String? _conversationId;
+  
+  String get _roomId => _conversationId ?? widget.user.id;
   Future<void> _loadMessages() async {
     try {
+      // 会話IDが未初期化の場合は初期化
+      if (_conversationId == null) {
+        await _initializeConversation();
+      }
+      
       final loaded = await _chatService.loadMessages(_roomId);
       setState(() {
         _messages.clear();
@@ -893,8 +900,25 @@ class _MapProfileModalState extends State<MapProfileModal> {
     }
   }
 
+  Future<void> _initializeConversation() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        _conversationId = await _chatService.findOrCreateConversation(currentUser.uid, widget.user.id);
+        debugPrint('✅ 会話IDを初期化: $_conversationId');
+      }
+    } catch (e) {
+      debugPrint('❌ 会話ID初期化エラー: $e');
+    }
+  }
+
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
+      // 会話IDが未初期化の場合は初期化
+      if (_conversationId == null) {
+        await _initializeConversation();
+      }
+      
       await _chatService.sendMessage(_roomId, (
         text: message,
         sent: true,
@@ -1106,19 +1130,25 @@ class _MapProfileModalState extends State<MapProfileModal> {
                       await _sendMessage(message, isSticker);
                       if (mounted) {
                         Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ChatRoomScreen(
-                              name: widget.user.name,
-                              status: widget.user.relationship.label,
-                              peerUid: widget.user.id,
-                              conversationId: widget.user.id,
-                              initialMessage: message,
-                              initialIsSticker: isSticker,
+                        
+                        // 正しい会話IDを取得
+                        final currentUser = FirebaseAuth.instance.currentUser;
+                        if (currentUser != null) {
+                          final conversationId = await FirebaseChatService().findOrCreateConversation(currentUser.uid, widget.user.id);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatRoomScreen(
+                                name: widget.user.name,
+                                status: widget.user.relationship.label,
+                                peerUid: widget.user.id,
+                                conversationId: conversationId, // 正しい会話IDを渡す
+                                initialMessage: '', // 空文字にして重複送信を防ぐ
+                                initialIsSticker: false,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       }
                     },
                   ),

@@ -22,9 +22,6 @@ class _HomeScreenState extends State<HomeScreen> {
 final repo = FirebaseUserRepository();
 final _auth = FirebaseAuth.instance;
 final _intimacyCalculator = IntimacyCalculator();
-bool proximityOn = true;
-bool dmOn = true;
-bool locationOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
 // ▼ ここを追加（_HomeScreenState のフィールドに追記）
@@ -74,30 +71,10 @@ children: [
 								);
 							},
 							title: const Text('あなた', style: TextStyle(fontWeight: FontWeight.bold)),
-							subtitle: _auth.currentUser == null
-								? null
-								: StreamBuilder<DocumentSnapshot>(
-										stream: FirebaseFirestore.instance
-												.collection('locations')
-												.doc(_auth.currentUser!.uid)
-												.snapshots(),
-										builder: (context, snap) {
-											if (!snap.hasData || !snap.data!.exists) {
-												return const SizedBox.shrink();
-											}
-											final data = snap.data!.data() as Map<String, dynamic>?;
-											final updatedStr = data?['updatedAt'] as String?;
-											if (updatedStr == null) return const SizedBox.shrink();
-											final updated = DateTime.tryParse(updatedStr);
-											if (updated == null) return const SizedBox.shrink();
-											final isOnline = DateTime.now().difference(updated).inMinutes < 5;
-											return isOnline ? const Text('オンライン') : const SizedBox.shrink();
-										},
-								),
+							subtitle: null,
 							trailing: _buildMyAvatar(),
 						),
 const Divider(height: 24),
-_toggleRow('位置情報許可', locationOn, (v) => setState(() => locationOn = v)),
 /*_toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
 _toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
 */
@@ -106,57 +83,6 @@ _toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
 ),
 ),
 const SizedBox(height: 12),
-const Padding(
-padding: EdgeInsets.symmetric(vertical: 8),
-child: Text('リアルタイム情報', style: TextStyle(fontWeight: FontWeight.bold)),
-),
-StreamBuilder<List<UserEntity>>(
-  stream: repo.watchAllUsersWithLocations(),
-  builder: (context, snapshot) {
-    final allUsers = snapshot.data ?? <UserEntity>[];
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('profiles').where('islogin', isEqualTo: true).snapshots(),
-      builder: (context, profSnap) {
-        final onlineIds = {
-          if (profSnap.hasData)
-            ...profSnap.data!.docs.map((d) => d.id)
-        };
-        final filtered = allUsers.where((u) => onlineIds.contains(u.id)).toList();
-        final userCount = filtered.length;
-        final isLoading = snapshot.connectionState == ConnectionState.waiting || profSnap.connectionState == ConnectionState.waiting;
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('オンラインユーザー', style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text(
-                      isLoading ? '読み込み中...' : '$userCount人',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: userCount > 0 ? Colors.green : Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '新しいユーザーがログインすると、リアルタイムでマップに表示されます',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  },
-),
 
 // ▼▼▼ ここから挿入（リアルタイム情報カードの直後、知り合い見出しの前）▼▼▼
 const SizedBox(height: 12),
