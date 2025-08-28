@@ -673,7 +673,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  // ユーザー名表示を削除（既にヘッダーに表示）
                   Text(widget.user.relationship.label, style: TextStyle(color: AppTheme.blue500)),
                   const SizedBox(height: 8),
                   OutlinedButton(
@@ -812,6 +812,8 @@ class _MapProfileModalState extends State<MapProfileModal> {
                           status: widget.user.relationship.label,
                           peerUid: widget.user.id,
                           conversationId: widget.user.id,
+                          initialMessage: message,
+                          initialIsSticker: isSticker,
                         ),
                       ),
                     );
