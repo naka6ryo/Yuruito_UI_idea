@@ -76,25 +76,6 @@ const Divider(height: 24),
 _toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
 _toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
 const Divider(height: 24),
-Row(
-  children: [
-    Expanded(
-      child: ElevatedButton(
-        onPressed: () async {
-          final firebaseRepo = FirebaseUserRepository();
-          await firebaseRepo.initializeCurrentUser();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('新規ユーザーとして再初期化しました')),
-            );
-          }
-        },
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-        child: const Text('ユーザー初期化'),
-      ),
-    ),
-  ],
-),
 const SizedBox(height: 12),
 const Padding(
 padding: EdgeInsets.symmetric(vertical: 8),
