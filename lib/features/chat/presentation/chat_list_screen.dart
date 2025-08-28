@@ -4,8 +4,11 @@ import 'chat_room_screen.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
+import '../../../domain/services/chat_service.dart';
+import '../../../data/services/firebase_chat_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../map/ShinmituDo/intimacy_calculator.dart';
+import 'chat_room_screen.dart';
 
 
 class ChatListScreen extends StatefulWidget {
@@ -17,6 +20,7 @@ class ChatListScreen extends StatefulWidget {
 
 class _ChatListScreenState extends State<ChatListScreen> {
 	late Future<List<UserEntity>> _future;
+	final ChatService _chatService = FirebaseChatService();
 
 	@override
 	void initState() {
@@ -38,47 +42,147 @@ class _ChatListScreenState extends State<ChatListScreen> {
 		debugPrint('✅ チャット画面のデータ再取得完了');
 	}
 
-	@override
+		@override
 	Widget build(BuildContext context) {
-		return FutureBuilder<List<UserEntity>>(
-			future: _future,
+		final meId = FirebaseAuth.instance.currentUser?.uid;
+		if (meId == null) return const SizedBox();
+		
+		return StreamBuilder<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>>(
+			stream: _watchConversations(meId),
 			builder: (context, snap) {
-				final list = snap.data ?? [];
-				if (list.isEmpty) return const SizedBox();
-				final meId = FirebaseAuth.instance.currentUser?.uid;
-				if (meId == null) return const SizedBox();
-				return StreamBuilder<Map<String, int?>>(
-					stream: IntimacyCalculator().watchIntimacyMap(meId),
-					builder: (context, intimacySnap) {
-						final scores = intimacySnap.data ?? {};
-						return ListView.separated(
-							separatorBuilder: (context, index) => const Divider(height: 1),
-							itemCount: list.length,
-							itemBuilder: (context, i) {
-								              final u = list[i];
-              final level = scores[u.id] ?? 0;
-              final label = level == 1 ? '知り合いかも' : level == 2 ? '顔見知り' : level == 3 ? '友達' : level == 4 ? '仲良し' : '';
-              final color = _colorForRelationship(u.relationship);
-              return ListTile(
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: u.name, status: u.relationship.label, peerUid: u.id, conversationId: u.id))),
-                leading: CircleAvatar(radius: 24, backgroundImage: u.avatarUrl != null ? NetworkImage(u.avatarUrl!) : null, backgroundColor: color),
-                title: Row(children: [
-                  Text(u.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  if (label.isNotEmpty) Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: _buildIntimacyBadge(label, level),
-                  ),
-                ]),
-									subtitle: Text(u.bio, maxLines: 1, overflow: TextOverflow.ellipsis),
-									trailing: Text('', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-									onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: u))),
-								);
-							},
-						);
-					}
+				final conversations = snap.data ?? [];
+				if (conversations.isEmpty) {
+					return const Center(
+						child: Column(
+							mainAxisAlignment: MainAxisAlignment.center,
+							children: [
+								Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+								SizedBox(height: 16),
+								Text('まだ会話がありません', style: TextStyle(color: Colors.grey, fontSize: 16)),
+								SizedBox(height: 8),
+								Text('ホームやマップから友達にメッセージを送ってみましょう', style: TextStyle(color: Colors.grey, fontSize: 12)),
+								SizedBox(height: 16),
+								Text('💡 ヒント', style: TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+								Text('• ホーム画面で友達をタップ', style: TextStyle(color: Colors.grey, fontSize: 11)),
+								Text('• マップで近くの友達をタップして一言メッセージ', style: TextStyle(color: Colors.grey, fontSize: 11)),
+								Text('• プロフィール画面からメッセージを送信', style: TextStyle(color: Colors.grey, fontSize: 11)),
+							],
+						),
+					);
+				}
+				
+				return RefreshIndicator(
+					onRefresh: () async {
+						setState(() {
+							// 画面を再構築してデータを再取得
+						});
+					},
+					child: ListView.separated(
+						separatorBuilder: (context, index) => const Divider(height: 1),
+						itemCount: conversations.length,
+						itemBuilder: (context, i) {
+							final conv = conversations[i];
+							return ListTile(
+								onTap: () => Navigator.of(context).push(
+									MaterialPageRoute(
+										builder: (_) => ChatRoomScreen(
+											name: conv.peerName,
+											status: '友達',
+											conversationId: conv.conversationId,
+										),
+									),
+								),
+								leading: CircleAvatar(
+									radius: 24,
+									backgroundColor: Colors.blue,
+									child: Text(
+										conv.peerName.isNotEmpty ? conv.peerName[0].toUpperCase() : 'U',
+										style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+									),
+								),
+								title: Row(
+									children: [
+										Expanded(
+											child: Text(
+												conv.peerName,
+												style: const TextStyle(fontWeight: FontWeight.bold),
+												overflow: TextOverflow.ellipsis,
+											),
+										),
+										if (conv.unreadCount > 0)
+											Container(
+												padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+												decoration: BoxDecoration(
+													color: Colors.red,
+													borderRadius: BorderRadius.circular(12),
+												),
+												child: Text(
+													conv.unreadCount.toString(),
+													style: const TextStyle(
+														color: Colors.white,
+														fontSize: 12,
+														fontWeight: FontWeight.bold,
+													),
+												),
+											),
+									],
+								),
+								subtitle: Column(
+									crossAxisAlignment: CrossAxisAlignment.start,
+									children: [
+										Text(
+											conv.lastMessage.isNotEmpty ? conv.lastMessage : 'メッセージがありません',
+											maxLines: 1,
+											overflow: TextOverflow.ellipsis,
+											style: TextStyle(
+												color: conv.unreadCount > 0 ? Colors.black87 : Colors.grey,
+												fontWeight: conv.unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+											),
+										),
+										if (conv.updatedAt != null)
+											Text(
+												_formatTime(conv.updatedAt!),
+												style: const TextStyle(color: Colors.grey, fontSize: 12),
+											),
+									],
+								),
+							);
+						},
+					),
 				);
 			},
 		);
+	}
+
+	Stream<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>> _watchConversations(String userId) async* {
+		while (true) {
+			try {
+				debugPrint('🔄 チャットリスト更新中...');
+				final conversations = await _chatService.getConversations(userId);
+				debugPrint('📊 チャットリスト: ${conversations.length}件の会話を取得');
+				yield conversations;
+			} catch (e) {
+				debugPrint('❌ 会話リスト取得エラー: $e');
+				yield [];
+			}
+			// 3秒ごとに更新
+			await Future.delayed(const Duration(seconds: 3));
+		}
+	}
+
+	String _formatTime(DateTime time) {
+		final now = DateTime.now();
+		final difference = now.difference(time);
+		
+		if (difference.inDays > 0) {
+			return '${difference.inDays}日前';
+		} else if (difference.inHours > 0) {
+			return '${difference.inHours}時間前';
+		} else if (difference.inMinutes > 0) {
+			return '${difference.inMinutes}分前';
+		} else {
+			return '今';
+		}
 	}
 
 		Color _colorForRelationship(Relationship r) {

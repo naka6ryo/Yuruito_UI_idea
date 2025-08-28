@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../domain/services/chat_service.dart';
@@ -174,6 +175,80 @@ class FirebaseChatService implements ChatService {
     };
 
     return controller.stream;
+  }
+
+  /// メッセージを既読にする
+  Future<void> markAsRead(String conversationId, String userId) async {
+    final convRef = _conversationsCol().doc(conversationId);
+    await convRef.update({
+      'lastReadBy': userId,
+      'lastReadAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// 会話リストを取得（未読カウント付き）
+  Future<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>> getConversations(String userId) async {
+    debugPrint('🔍 会話リスト取得開始: userId=$userId');
+    
+    // インデックスが作成されるまでの一時的な回避策
+    final conversations = await _conversationsCol()
+        .where('members', arrayContains: userId)
+        .get();
+    
+    // メモリ上でソート
+    final sortedConversations = conversations.docs.toList()
+      ..sort((a, b) {
+        final aData = a.data();
+        final bData = b.data();
+        final aTime = aData['updatedAt'] as Timestamp?;
+        final bTime = bData['updatedAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime); // 降順
+      });
+    
+    debugPrint('📋 検索された会話数: ${sortedConversations.length}');
+    
+    final List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})> result = [];
+    
+    for (final doc in sortedConversations) {
+      final data = doc.data();
+      final members = List<String>.from(data['members'] ?? []);
+      final peerId = members.firstWhere((id) => id != userId, orElse: () => '');
+      
+      debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId');
+      
+      if (peerId.isNotEmpty) {
+        // 実際にメッセージがあるかチェック
+        final messagesQuery = await doc.reference.collection('messages').limit(1).get();
+        
+        debugPrint('💬 会話 ${doc.id}: メッセージ数=${messagesQuery.docs.length}');
+        
+        // メッセージがある場合のみ追加
+        if (messagesQuery.docs.isNotEmpty) {
+          // ユーザー情報を取得
+          final userDoc = await _db.collection('users').doc(peerId).get();
+          final userName = userDoc.data()?['name'] ?? 'Unknown User';
+          
+          final conversation = (
+            conversationId: doc.id,
+            peerName: userName as String,
+            lastMessage: (data['lastMessage'] as String?) ?? '',
+            updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+            unreadCount: 0, // 一時的に0に設定
+          );
+          
+          result.add(conversation);
+          debugPrint('✅ 会話追加: ${conversation.peerName} (${conversation.conversationId})');
+        } else {
+          debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
+        }
+      }
+    }
+    
+    debugPrint('📊 最終結果: ${result.length}件の会話');
+    return result;
   }
 }
 
