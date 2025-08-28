@@ -176,3 +176,4 @@ class IntimacyCalculator {
     return null;
   }
 }
+
