@@ -1,3 +1,4 @@
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
@@ -30,12 +31,14 @@ class Encounter {
   int meetCount;
   DateTime lastEncounter;
   int intimacyLevel;
+  bool isCurrentlyEncountering;
 
   Encounter({
     required this.encounterSeconds,
     required this.meetCount,
     required this.lastEncounter,
     required this.intimacyLevel,
+    required this.isCurrentlyEncountering,
   });
 
   factory Encounter.fromFirestore(Map<String, dynamic> data) {
@@ -44,6 +47,7 @@ class Encounter {
       meetCount: data['meetCount'] ?? 0,
       lastEncounter: (data['lastEncounter'] as Timestamp).toDate(),
       intimacyLevel: data['intimacyLevel'] ?? 0,
+      isCurrentlyEncountering: data['isCurrentlyEncountering'] ?? false,
     );
   }
 
@@ -53,6 +57,7 @@ class Encounter {
       'meetCount': meetCount,
       'lastEncounter': Timestamp.fromDate(lastEncounter),
       'intimacyLevel': intimacyLevel,
+      'isCurrentlyEncountering': isCurrentlyEncountering,
     };
   }
 }
@@ -83,115 +88,75 @@ class IntimacyCalculator {
     }
   }
 
+  // intimacy_calculator.dart
+
+  // ★★★ THIS IS THE REVISED FUNCTION ★★★
   Future<void> updateIntimacy(
     String currentUserId,
     Position currentUserPosition,
     String targetUserId,
+    LatLng targetUserLatLng,
   ) async {
     try {
-      debugPrint('--- Checking intimacy with $targetUserId ---');
-      debugPrint(
-        'My Position: (${currentUserPosition.latitude}, ${currentUserPosition.longitude})',
-      );
-
-      // ターゲットユーザーの位置情報を取得
-      final targetUserDoc = await _firestore
-          .collection('locations')
-          .doc(targetUserId)
-          .get();
-      if (!targetUserDoc.exists) {
-        debugPrint('Target user location not found');
-        return;
-      }
-
-      final targetUserData = targetUserDoc.data()!;
-      final targetUserLocation = targetUserData['location'] as GeoPoint;
-
-      debugPrint(
-        'Target Position: (${targetUserLocation.latitude}, ${targetUserLocation.longitude})',
-      );
-
-      // 距離を計算
       final distance = _calculateDistance(
         currentUserPosition.latitude,
         currentUserPosition.longitude,
-        targetUserLocation.latitude,
-        targetUserLocation.longitude,
+        targetUserLatLng.latitude,
+        targetUserLatLng.longitude,
       );
 
-      debugPrint('Calculated Distance: $distance meters');
-
-      // encounters の docId を作成
       final ids = [currentUserId, targetUserId];
       ids.sort();
       final String docId = ids.join('_');
       final docRef = _firestore.collection('encounters').doc(docId);
 
-      final encounterDoc = await docRef.get();
-      final now = DateTime.now();
+      await _firestore.runTransaction((transaction) async {
+        final docSnapshot = await transaction.get(docRef);
+        final now = DateTime.now();
+        final bool isNowClose = (distance <= 100);
 
-      if (encounterDoc.exists) {
-        // 既存データあり → 再計算して更新
-        final encounter = Encounter.fromFirestore(encounterDoc.data()!);
+        if (!docSnapshot.exists) {
+          if (isNowClose) {
+            final newEncounter = Encounter(
+              encounterSeconds: 30,
+              meetCount: 1,
+              lastEncounter: now,
+              isCurrentlyEncountering: true,
+              intimacyLevel: _calculateIntimacyLevel(30, 1),
+            );
+            transaction.set(docRef, newEncounter.toFirestore());
+            // ▼▼▼ エラー箇所を修正 ▼▼▼
+            debugPrint("🎉 New encounter for $docId: meetCount is 1.");
+          }
+          return;
+        }
 
-        // ★ 毎回再計算
-        encounter.intimacyLevel = _calculateIntimacyLevel(
-          encounter.encounterSeconds,
-          encounter.meetCount,
-        );
+        final existingEncounter = Encounter.fromFirestore(docSnapshot.data()!);
+        final bool wasClose = existingEncounter.isCurrentlyEncountering;
+        final bool isNewEncounter = isNowClose && !wasClose;
 
-        await docRef.update(encounter.toFirestore());
-
-        debugPrint(
-          '📊 Recalculated intimacy for $currentUserId-$targetUserId: '
-          'Level ${encounter.intimacyLevel}, '
-          'Seconds: ${encounter.encounterSeconds}, '
-          'MeetCount: ${encounter.meetCount}, '
-          'Last: ${encounter.lastEncounter}',
-        );
-      } else {
-        // データがない場合は初期化して作成
-        final newEncounter = Encounter(
-          encounterSeconds: 0,
-          meetCount: 0,
-          lastEncounter: now,
-          intimacyLevel: 0,
-        );
-        await docRef.set(newEncounter.toFirestore());
-
-        debugPrint(
-          '📊 New intimacy created for $currentUserId-$targetUserId: Level 0',
-        );
-      }
-
-      // 一定距離以内なら追加更新
-      if (distance <= 100) {
-        final encounterDoc = await docRef.get();
-        if (encounterDoc.exists) {
-          final encounter = Encounter.fromFirestore(encounterDoc.data()!);
-          encounter.encounterSeconds += 30; // 30秒追加
-          encounter.meetCount += 1;
-          encounter.lastEncounter = now;
-
-          // 再計算
-          encounter.intimacyLevel = _calculateIntimacyLevel(
-            encounter.encounterSeconds,
-            encounter.meetCount,
-          );
-
-          await docRef.update(encounter.toFirestore());
-
+        if (isNewEncounter) {
+          existingEncounter.meetCount += 1;
+          // ▼▼▼ エラー箇所を修正 ▼▼▼
           debugPrint(
-            '✅ Intimacy updated (within 100m) for $currentUserId-$targetUserId: '
-            'Level ${encounter.intimacyLevel}, '
-            'Seconds: ${encounter.encounterSeconds}, '
-            'MeetCount: ${encounter.meetCount}, '
-            'Last: ${encounter.lastEncounter}',
+            "🤝 Re-encounter for $docId! meetCount is now ${existingEncounter.meetCount}.",
           );
         }
-      }
+
+        if (isNowClose) {
+          existingEncounter.encounterSeconds += 30;
+        }
+
+        existingEncounter.isCurrentlyEncountering = isNowClose;
+        existingEncounter.lastEncounter = now;
+        existingEncounter.intimacyLevel = _calculateIntimacyLevel(
+          existingEncounter.encounterSeconds,
+          existingEncounter.meetCount,
+        );
+        transaction.update(docRef, existingEncounter.toFirestore());
+      });
     } catch (e) {
-      debugPrint('Error updating intimacy: $e');
+      debugPrint('❌ Error updating intimacy with $targetUserId: $e');
     }
   }
 
