@@ -68,9 +68,9 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
           'q1': latestProfile['one_word'] ?? '',
           'q2': latestProfile['favorite_food'] ?? '',
           'q3': latestProfile['like_work'] ?? '',
-          'q4': latestProfile['like_taste_sushi'] ?? '',
-          'q5': latestProfile['like_music_genre'] ?? '',
-          'q6': latestProfile['how_do_you_use_the_time'] ?? '',
+          'q4': latestProfile['like_music_genre'] ?? '',
+          'q5': latestProfile['like_taste_sushi'] ?? '',
+          'q6': latestProfile['what_do_you_use_the_time'] ?? '',
         };
         debugPrint('✅ questionnaireIdから回答を取得: $_latestAnswers');
       } else {
@@ -327,9 +327,17 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
 
               _buildProfileInfoCard(
                 'よく聴く、好きな音楽は？',
-                _latestAnswers['q5'] ?? '未回答',
+                _latestAnswers['q4'] ?? '未回答',
                 Icons.music_note,
                 Colors.green,
+              ),
+              const SizedBox(height: 12),
+
+              _buildProfileInfoCard(
+                'お寿司屋さんで、これだけは外せないネタは？',
+                _latestAnswers['q5'] ?? '未回答',
+                Icons.set_meal,
+                Colors.red,
               ),
               const SizedBox(height: 12),
 

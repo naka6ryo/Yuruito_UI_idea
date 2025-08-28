@@ -123,6 +123,9 @@ Color _getRelationshipColor(Relationship relationship) {
 }
 
 Widget? _badge(Relationship r) {
+	// レベル0（none）の場合はタグを表示しない
+	if (!r.shouldDisplay) return null;
+	
 	final label = r.label;
 	if (label.isEmpty) return null;
 	Color color = _getRelationshipColor(r);
