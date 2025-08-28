@@ -82,6 +82,56 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
     }
   }
 
+  Widget _buildInputRow({required bool allowText, int? maxLength}) {
+    return Row(
+      children: [
+        // スタンプトグルボタン
+        IconButton(
+          onPressed: _toggleStickerPicker,
+          icon: const Icon(Icons.emoji_emotions_outlined),
+        ),
+        Expanded(
+          child: TextField(
+            controller: _controller,
+            readOnly: !allowText,
+            maxLength: maxLength,
+            inputFormatters: maxLength != null ? [LengthLimitingTextInputFormatter(maxLength)] : null,
+            decoration: InputDecoration(
+              hintText: 'ひとこと送る...',
+              filled: true,
+              fillColor: AppTheme.scaffoldBg,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(24),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            onTap: () {
+              if (!allowText) _toggleStickerPicker();
+            },
+            onChanged: (s) => setState(() {}),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // 送信ボタン
+        IconButton(
+          onPressed: () {
+            if (allowText) {
+              final text = _controller.text.trim();
+              if (text.isNotEmpty && (maxLength == null || text.length <= maxLength)) {
+                _sendMessage(text, false);
+              }
+            } else {
+              // スタンプを送りたい場合はピッカーを開く
+              _toggleStickerPicker();
+            }
+          },
+          icon: Icon(Icons.send, color: AppTheme.blue500),
+        ),
+      ],
+    );
+  }
+
   String _getIntimacyLevelText() {
     switch (_intimacyLevel) {
       case 0:
@@ -132,31 +182,8 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('スタンプを選んでください：', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      hintText: 'スタンプを送信できます',
-                      filled: true,
-                      fillColor: AppTheme.scaffoldBg,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _toggleStickerPicker,
-                  icon: const Icon(Icons.emoji_emotions_outlined),
-                ),
-              ],
-            ),
+            _buildInputRow(allowText: false),
             if (_showStickerPicker) const SizedBox(height: 8),
             if (_showStickerPicker)
               Wrap(
@@ -202,35 +229,25 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    maxLength: maxLength,
-                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)],
-                    decoration: InputDecoration(
-                      hintText: 'メッセージを入力...',
-                      counterText: '',
-                      errorText: _controller.text.length > maxLength ? '最大$maxLength文字までです' : null,
+            _buildInputRow(allowText: true, maxLength: maxLength),
+            if (_showStickerPicker) const SizedBox(height: 8),
+            if (_showStickerPicker)
+              Wrap(
+                spacing: 8,
+                children: _stickerOptions.map((sticker) => GestureDetector(
+                  onTap: () => _sendMessage(sticker, true),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.scaffoldBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.blue500),
                     ),
-                    onChanged: (text) => setState(() {}),
+                    child: Text(sticker, style: const TextStyle(fontSize: 24)),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    final text = _controller.text.trim();
-                    if (text.isNotEmpty && text.length <= maxLength) {
-                      _sendMessage(text, false);
-                    }
-                  },
-                  icon: Icon(Icons.send, color: AppTheme.blue500),
-                ),
-              ],
-            ),
+                )).toList(),
+              ),
           ],
         );
 
@@ -240,16 +257,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
-                const Spacer(),
-                IconButton(
-                  onPressed: _toggleStickerPicker,
-                  icon: const Icon(Icons.emoji_emotions_outlined),
-                ),
-              ],
-            ),
+            // Sticker toggle button removed here; input-row's emoji button remains.
             if (_showStickerPicker) const SizedBox(height: 8),
             if (_showStickerPicker)
               Wrap(
@@ -268,34 +276,9 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
                 )).toList(),
               ),
             const SizedBox(height: 16),
-            // テキスト入力
-            Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
+            // テキスト入力（ラベルは削除）
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    maxLength: maxLength,
-                    inputFormatters: [LengthLimitingTextInputFormatter(maxLength)], // 最大文字数を制限
-                    decoration: const InputDecoration(
-                      hintText: 'メッセージを入力...',
-                      counterText: '', // 文字数表示を非表示
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    final text = _controller.text.trim();
-                    if (text.isNotEmpty && text.length <= maxLength) {
-                      _sendMessage(text, false);
-                    }
-                  },
-                  icon: Icon(Icons.send, color: AppTheme.blue500),
-                ),
-              ],
-            ),
+            _buildInputRow(allowText: true, maxLength: maxLength),
             // 最大文字数に達した場合の警告表示
             if (_controller.text.length >= maxLength)
               Padding(
@@ -314,11 +297,12 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
             ),
           ],
         );
-
-      default:
-        return const Text('エラー：不明な親密度レベル');
-    }
+  // close switch
   }
+
+  // Fallback return to satisfy non-nullable Widget return type
+  return const SizedBox.shrink();
+}
 
   @override
   Widget build(BuildContext context) {
