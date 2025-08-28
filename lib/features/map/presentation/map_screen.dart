@@ -952,17 +952,11 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
             // メッセージリスト
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_messages.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'まだメッセージがありません\n下から送信してみてください',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.builder(
+        child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : (_messages.isEmpty
+            ? const SizedBox.shrink()
+            : ListView.builder(
                           controller: ctrl,
                           itemCount: _messages.length,
                           itemBuilder: (context, index) {

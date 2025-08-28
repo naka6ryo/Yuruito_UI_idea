@@ -25,6 +25,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   final IntimacyCalculator _intimacyCalculator = IntimacyCalculator();
   int _intimacyLevel = 0;
   bool _isLoading = true;
+  bool _showStickerPicker = false;
 
   // スタンプオプション（親密度1）
   final List<String> _stickerOptions = ['😊', '👋', '❤️', '👍'];
@@ -68,6 +69,17 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
   void _sendMessage(String message, bool isSticker) {
     widget.onSendMessage(message, isSticker);
     _controller.clear();
+    if (mounted) {
+      setState(() {
+        _showStickerPicker = false;
+      });
+    }
+  }
+
+  void _toggleStickerPicker() {
+    if (mounted) {
+      setState(() => _showStickerPicker = !_showStickerPicker);
+    }
   }
 
   String _getIntimacyLevelText() {
@@ -122,21 +134,46 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
           children: [
             const Text('スタンプを選んでください：', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _stickerOptions.map((sticker) => GestureDetector(
-                onTap: () => _sendMessage(sticker, true),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.scaffoldBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.blue500),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      hintText: 'スタンプを送信できます',
+                      filled: true,
+                      fillColor: AppTheme.scaffoldBg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
-                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
                 ),
-              )).toList(),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _toggleStickerPicker,
+                  icon: const Icon(Icons.emoji_emotions_outlined),
+                ),
+              ],
             ),
+            if (_showStickerPicker) const SizedBox(height: 8),
+            if (_showStickerPicker)
+              Wrap(
+                spacing: 8,
+                children: _stickerOptions.map((sticker) => GestureDetector(
+                  onTap: () => _sendMessage(sticker, true),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.scaffoldBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.blue500),
+                    ),
+                    child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                  ),
+                )).toList(),
+              ),
           ],
         );
 
@@ -203,24 +240,33 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // スタンプ選択
-            const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _stickerOptions.map((sticker) => GestureDetector(
-                onTap: () => _sendMessage(sticker, true),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.scaffoldBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.blue500),
-                  ),
-                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
+            Row(
+              children: [
+                const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                IconButton(
+                  onPressed: _toggleStickerPicker,
+                  icon: const Icon(Icons.emoji_emotions_outlined),
                 ),
-              )).toList(),
+              ],
             ),
+            if (_showStickerPicker) const SizedBox(height: 8),
+            if (_showStickerPicker)
+              Wrap(
+                spacing: 8,
+                children: _stickerOptions.map((sticker) => GestureDetector(
+                  onTap: () => _sendMessage(sticker, true),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.scaffoldBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.blue500),
+                    ),
+                    child: Text(sticker, style: const TextStyle(fontSize: 24)),
+                  ),
+                )).toList(),
+              ),
             const SizedBox(height: 16),
             // テキスト入力
             Text('メッセージ（$maxLength文字まで）：', style: const TextStyle(fontWeight: FontWeight.bold)),
