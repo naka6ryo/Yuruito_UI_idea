@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -85,6 +88,74 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // On web, render inside the same phone-like framed container used by AppShell
+    if (kIsWeb) {
+      const aspect = 9 / 19.5;
+      const maxPhoneWidth = 384.0;
+
+      return LayoutBuilder(builder: (context, constraints) {
+        final maxH = constraints.maxHeight * 0.95;
+        var width = min(maxPhoneWidth, constraints.maxWidth);
+        var height = width / aspect;
+        if (height > maxH) {
+          height = maxH;
+          width = height * aspect;
+        }
+
+        return Container(
+          color: const Color(0xFFF3F4F6),
+          child: Center(
+            child: Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                appBar: AppBar(
+                  backgroundColor: Colors.white,
+                  elevation: 0.5,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: const Text(
+                    'プロフィール',
+                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.settings, color: Colors.black87),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                body: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _currentUser == null
+                        ? const Center(
+                            child: Text(
+                              'ログインが必要です',
+                              style: TextStyle(fontSize: 16, color: Colors.grey),
+                            ),
+                          )
+                        : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+              ),
+            ),
+          ),
+        );
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
@@ -119,122 +190,43 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                     style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      // メインプロフィール
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            // プロフィール画像
-                            CircleAvatar(
-                              radius: 50,
-                              backgroundColor: Colors.blue,
-                              backgroundImage: _currentUser!.avatarUrl != null 
-                                  ? NetworkImage(_currentUser!.avatarUrl!)
-                                  : null,
-                              child: _currentUser!.avatarUrl == null
-                                  ? Text(
-                                      _currentUser!.name.isNotEmpty 
-                                          ? _currentUser!.name[0].toUpperCase() 
-                                          : 'U',
-                                      style: const TextStyle(
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-                            
-                            // 名前
-                            Text(
-                              _currentUser!.name.isNotEmpty ? _currentUser!.name : 'あなた',
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            
-                            // ユーザーID
-                            Text(
-                              'ID: ${_auth.currentUser?.uid.substring(0, 8) ?? 'unknown'}...',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            
-                            if (_currentUser!.bio.isNotEmpty) ...[
-                              const SizedBox(height: 16),
-                              Text(
-                                '"${_currentUser!.bio}"',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black87,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+              : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+    );
+  }
 
-                      // アカウント情報
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'アカウント情報',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildInfoRow('メールアドレス', _auth.currentUser?.email ?? '未設定'),
-                            const SizedBox(height: 8),
-                            _buildInfoRow('登録日', _formatDate(_auth.currentUser?.metadata.creationTime)),
-                            const SizedBox(height: 8),
-                            _buildInfoRow('最終ログイン', _formatDate(_auth.currentUser?.metadata.lastSignInTime)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+  Widget _buildBody() {
+    return Column(
+      children: [
+        // メインプロフィール
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              // プロフィール画像
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.blue,
+                backgroundImage: _currentUser!.avatarUrl != null ? NetworkImage(_currentUser!.avatarUrl!) : null,
+                child: _currentUser!.avatarUrl == null
+                    ? Text(
+                        _currentUser!.name.isNotEmpty ? _currentUser!.name[0].toUpperCase() : 'U',
+                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 16),
 
                       // プロフィール詳細情報（Firestore回答を反映）
                       Container(

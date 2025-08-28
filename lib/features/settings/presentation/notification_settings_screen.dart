@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../data/services/firebase_settings_service.dart';
 
@@ -72,6 +75,56 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Use same phone-like framed layout on web as AppShell
+    if (kIsWeb) {
+      const aspect = 9 / 19.5;
+      const maxPhoneWidth = 384.0;
+
+      return LayoutBuilder(builder: (context, constraints) {
+        final maxH = constraints.maxHeight * 0.95;
+        var width = min(maxPhoneWidth, constraints.maxWidth);
+        var height = width / aspect;
+        if (height > maxH) {
+          height = maxH;
+          width = height * aspect;
+        }
+
+        return Container(
+          color: const Color(0xFFF3F4F6),
+          child: Center(
+            child: Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Scaffold(
+                backgroundColor: Colors.transparent,
+                appBar: AppBar(
+                  backgroundColor: Colors.white,
+                  elevation: 0.5,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  title: const Text(
+                    '通知設定',
+                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                body: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+              ),
+            ),
+          ),
+        );
+      });
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
@@ -88,187 +141,194 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // プッシュ通知全般
-                  _buildSectionHeader('プッシュ通知'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: Icon(
-                            Icons.notifications,
-                            color: _pushEnabled ? Colors.blue : Colors.grey,
-                          ),
-                          title: const Text('プッシュ通知を受け取る'),
-                          subtitle: const Text('アプリからの通知を受け取ります'),
-                          trailing: Switch(
-                            value: _pushEnabled,
-                            onChanged: (value) {
-                              setState(() => _pushEnabled = value);
-                              _updateNotificationSettings();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+          : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+    );
+  }
 
-                  // 個別通知設定
-                  _buildSectionHeader('個別通知設定'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: Icon(
-                            Icons.location_on,
-                            color: (_pushEnabled && _locationUpdates) ? Colors.green : Colors.grey,
-                          ),
-                          title: const Text('位置情報の更新'),
-                          subtitle: const Text('友達の位置情報が更新された時に通知'),
-                          trailing: Switch(
-                            value: _pushEnabled && _locationUpdates,
-                            onChanged: _pushEnabled ? (value) {
-                              setState(() => _locationUpdates = value);
-                              _updateNotificationSettings();
-                            } : null,
-                          ),
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: Icon(
-                            Icons.chat,
-                            color: (_pushEnabled && _chatMessages) ? Colors.blue : Colors.grey,
-                          ),
-                          title: const Text('チャットメッセージ'),
-                          subtitle: const Text('新しいメッセージを受信した時に通知'),
-                          trailing: Switch(
-                            value: _pushEnabled && _chatMessages,
-                            onChanged: _pushEnabled ? (value) {
-                              setState(() => _chatMessages = value);
-                              _updateNotificationSettings();
-                            } : null,
-                          ),
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: Icon(
-                            Icons.person_add,
-                            color: (_pushEnabled && _friendRequests) ? Colors.orange : Colors.grey,
-                          ),
-                          title: const Text('友達リクエスト'),
-                          subtitle: const Text('新しい友達申請を受信した時に通知'),
-                          trailing: Switch(
-                            value: _pushEnabled && _friendRequests,
-                            onChanged: _pushEnabled ? (value) {
-                              setState(() => _friendRequests = value);
-                              _updateNotificationSettings();
-                            } : null,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 通知時間設定
-                  _buildSectionHeader('通知時間'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.schedule, color: Colors.purple),
-                          title: const Text('おやすみモード'),
-                          subtitle: const Text('指定した時間は通知を停止します'),
-                          trailing: const Text('準備中', style: TextStyle(color: Colors.grey)),
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('おやすみモード機能は準備中です')),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 詳細設定
-                  _buildSectionHeader('詳細設定'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.vibration, color: Colors.red),
-                          title: const Text('バイブレーション'),
-                          subtitle: const Text('通知時にバイブレーションで知らせます'),
-                          trailing: Switch(
-                            value: _pushEnabled,
-                            onChanged: null, // システム設定に依存
-                          ),
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('バイブレーション設定は端末の設定から変更してください')),
-                            );
-                          },
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.volume_up, color: Colors.indigo),
-                          title: const Text('通知音'),
-                          subtitle: const Text('通知音を変更します'),
-                          trailing: const Text('デフォルト', style: TextStyle(color: Colors.grey)),
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('通知音設定は端末の設定から変更してください')),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // 現在の通知設定サマリー
-                  _buildSectionHeader('現在の設定'),
-                  Card(
-                    color: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSettingSummary('プッシュ通知', _pushEnabled),
-                          const SizedBox(height: 8),
-                          _buildSettingSummary('位置情報更新', _pushEnabled && _locationUpdates),
-                          const SizedBox(height: 8),
-                          _buildSettingSummary('チャットメッセージ', _pushEnabled && _chatMessages),
-                          const SizedBox(height: 8),
-                          _buildSettingSummary('友達リクエスト', _pushEnabled && _friendRequests),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+  Widget _buildBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // プッシュ通知全般
+        _buildSectionHeader('プッシュ通知'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.notifications,
+                  color: _pushEnabled ? Colors.blue : Colors.grey,
+                ),
+                title: const Text('プッシュ通知を受け取る'),
+                subtitle: const Text('アプリからの通知を受け取ります'),
+                trailing: Switch(
+                  value: _pushEnabled,
+                  onChanged: (value) {
+                    setState(() => _pushEnabled = value);
+                    _updateNotificationSettings();
+                  },
+                ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 個別通知設定
+        _buildSectionHeader('個別通知設定'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.location_on,
+                  color: (_pushEnabled && _locationUpdates) ? Colors.green : Colors.grey,
+                ),
+                title: const Text('位置情報の更新'),
+                subtitle: const Text('友達の位置情報が更新された時に通知'),
+                trailing: Switch(
+                  value: _pushEnabled && _locationUpdates,
+                  onChanged: _pushEnabled
+                      ? (value) {
+                          setState(() => _locationUpdates = value);
+                          _updateNotificationSettings();
+                        }
+                      : null,
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.chat,
+                  color: (_pushEnabled && _chatMessages) ? Colors.blue : Colors.grey,
+                ),
+                title: const Text('チャットメッセージ'),
+                subtitle: const Text('新しいメッセージを受信した時に通知'),
+                trailing: Switch(
+                  value: _pushEnabled && _chatMessages,
+                  onChanged: _pushEnabled
+                      ? (value) {
+                          setState(() => _chatMessages = value);
+                          _updateNotificationSettings();
+                        }
+                      : null,
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.person_add,
+                  color: (_pushEnabled && _friendRequests) ? Colors.orange : Colors.grey,
+                ),
+                title: const Text('友達リクエスト'),
+                subtitle: const Text('新しい友達申請を受信した時に通知'),
+                trailing: Switch(
+                  value: _pushEnabled && _friendRequests,
+                  onChanged: _pushEnabled
+                      ? (value) {
+                          setState(() => _friendRequests = value);
+                          _updateNotificationSettings();
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 通知時間設定
+        _buildSectionHeader('通知時間'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.schedule, color: Colors.purple),
+                title: const Text('おやすみモード'),
+                subtitle: const Text('指定した時間は通知を停止します'),
+                trailing: const Text('準備中', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('おやすみモード機能は準備中です')),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 詳細設定
+        _buildSectionHeader('詳細設定'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.vibration, color: Colors.red),
+                title: const Text('バイブレーション'),
+                subtitle: const Text('通知時にバイブレーションで知らせます'),
+                trailing: Switch(
+                  value: _pushEnabled,
+                  onChanged: null, // システム設定に依存
+                ),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('バイブレーション設定は端末の設定から変更してください')),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.volume_up, color: Colors.indigo),
+                title: const Text('通知音'),
+                subtitle: const Text('通知音を変更します'),
+                trailing: const Text('デフォルト', style: TextStyle(color: Colors.grey)),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('通知音設定は端末の設定から変更してください')),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // 現在の通知設定サマリー
+        _buildSectionHeader('現在の設定'),
+        Card(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSettingSummary('プッシュ通知', _pushEnabled),
+                const SizedBox(height: 8),
+                _buildSettingSummary('位置情報更新', _pushEnabled && _locationUpdates),
+                const SizedBox(height: 8),
+                _buildSettingSummary('チャットメッセージ', _pushEnabled && _chatMessages),
+                const SizedBox(height: 8),
+                _buildSettingSummary('友達リクエスト', _pushEnabled && _friendRequests),
+              ],
             ),
+          ),
+        ),
+      ],
     );
   }
 
