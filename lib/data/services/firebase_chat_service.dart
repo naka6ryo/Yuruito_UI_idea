@@ -155,8 +155,8 @@ class FirebaseChatService implements ChatService {
           .snapshots()
           .listen((snapshot) {
         for (final doc in snapshot.docChanges) {
-          // Only process newly added messages, not existing ones
-          if (doc.type == DocumentChangeType.added && doc.doc.metadata.hasPendingWrites == false) {
+          // Process newly added messages
+          if (doc.type == DocumentChangeType.added) {
             final data = doc.doc.data() ?? {};
             final from = data['from'] as String? ?? '';
             final text = data['text'] as String? ?? '';

@@ -24,7 +24,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   // Firestore実装に差し替え
   final ChatService _chatService = FirebaseChatService();
 
-  final List<({String text, bool sent, bool sticker, String from})> messages = [];
+  final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> messages = [];
   final ctrl = TextEditingController();
 
   bool get stickerOnly => widget.status == '顔見知り';
@@ -46,19 +46,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     
     final loaded = await _chatService.loadMessages(_roomId);
     setState(() {
-      messages.addAll(loaded);
+      messages.addAll(loaded.map((m) => (
+        text: m.text,
+        sent: m.sent,
+        sticker: m.sticker,
+        from: m.from,
+        timestamp: DateTime.now()
+      )));
     });
     
     // Listen for incoming messages
     _chatService.onMessage(_roomId).listen((m) {
       // Check if message already exists to prevent duplicates
+      // Use more specific comparison to avoid false positives
       final exists = messages.any((existing) => 
         existing.text == m.text && 
         existing.from == m.from && 
-        existing.sticker == m.sticker
+        existing.sticker == m.sticker &&
+        existing.sent == m.sent
       );
       if (!exists) {
-        setState(() => messages.add(m));
+        setState(() => messages.add((
+          text: m.text,
+          sent: m.sent,
+          sticker: m.sticker,
+          from: m.from,
+          timestamp: DateTime.now()
+        )));
       }
     });
     
