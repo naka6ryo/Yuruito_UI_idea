@@ -21,7 +21,21 @@ class _ChatListScreenState extends State<ChatListScreen> {
 	@override
 	void initState() {
 		super.initState();
-		_future = FirebaseUserRepository().fetchAcquaintances(); // excludes passingMaybe
+		// データを強制的に再取得
+		_refreshData();
+	}
+
+	Future<void> _refreshData() async {
+		debugPrint('🔄 チャット画面のデータを再取得中...');
+		
+		// 少し待機してからデータを再取得
+		await Future.delayed(const Duration(milliseconds: 300));
+		
+		setState(() {
+			_future = FirebaseUserRepository().fetchAcquaintances(); // excludes passingMaybe
+		});
+		
+		debugPrint('✅ チャット画面のデータ再取得完了');
 	}
 
 	@override
