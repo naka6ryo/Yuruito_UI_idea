@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:lottie/lottie.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../utils/google_maps_loader.dart';
@@ -538,7 +539,16 @@ class _MapScreenState extends State<MapScreen>
   Widget build(BuildContext context) {
     switch (_permissionStatus) {
       case PermissionStatus.checking:
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          body: Center(
+            child: Lottie.asset(
+              'assets/load.json',
+              width: 220,
+              height: 220,
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
       case PermissionStatus.granted:
         return buildMapWidget(context);
       case PermissionStatus.denied:
@@ -570,7 +580,14 @@ class _MapScreenState extends State<MapScreen>
             return Center(child: Text('エラー: ${snap.error}'));
           }
           if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return Center(
+              child: Lottie.asset(
+                'assets/load.json',
+                width: 180,
+                height: 180,
+                fit: BoxFit.contain,
+              ),
+            );
           }
           final BitmapDescriptor? meIcon = snap.data![2] as BitmapDescriptor?;
           return StreamBuilder<List<UserEntity>>(
@@ -907,9 +924,16 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
               // Messages area (use internal list of widgets so the sheet controller handles scrolling)
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: CircularProgressIndicator()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Lottie.asset(
+                      'assets/load.json',
+                      width: 140,
+                      height: 140,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 )
               else if (_messages.isEmpty)
                 const SizedBox.shrink()
