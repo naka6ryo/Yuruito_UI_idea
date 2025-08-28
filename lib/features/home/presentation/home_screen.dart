@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../domain/entities/relationship.dart';
 import '../../../domain/entities/user.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
-import '../../../data/services/user_seed_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/user_card.dart';
+import '../../profile/presentation/my_profile_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -17,8 +19,9 @@ State<HomeScreen> createState() => _HomeScreenState();
 
 class _HomeScreenState extends State<HomeScreen> {
 final repo = FirebaseUserRepository();
-bool locationOn = false;
-bool updateOn = false;
+final _auth = FirebaseAuth.instance;
+bool proximityOn = true;
+bool dmOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
 
@@ -44,49 +47,39 @@ crossAxisAlignment: CrossAxisAlignment.start,
 children: [
 						ListTile(
 							contentPadding: EdgeInsets.zero,
-							onTap: () {},
+							onTap: () {
+								Navigator.push(
+									context,
+									MaterialPageRoute(builder: (_) => const MyProfileScreen()),
+								);
+							},
 							title: const Text('あなた', style: TextStyle(fontWeight: FontWeight.bold)),
-							subtitle: const Text('のんびり過ごしてます。', maxLines: 2, overflow: TextOverflow.ellipsis),
+							subtitle: _auth.currentUser == null
+								? null
+								: StreamBuilder<DocumentSnapshot>(
+										stream: FirebaseFirestore.instance
+												.collection('locations')
+												.doc(_auth.currentUser!.uid)
+												.snapshots(),
+										builder: (context, snap) {
+											if (!snap.hasData || !snap.data!.exists) {
+												return const SizedBox.shrink();
+											}
+											final data = snap.data!.data() as Map<String, dynamic>?;
+											final updatedStr = data?['updatedAt'] as String?;
+											if (updatedStr == null) return const SizedBox.shrink();
+											final updated = DateTime.tryParse(updatedStr);
+											if (updated == null) return const SizedBox.shrink();
+											final isOnline = DateTime.now().difference(updated).inMinutes < 5;
+											return isOnline ? const Text('オンライン') : const SizedBox.shrink();
+										},
+									),
 							trailing: const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U')),
 						),
 const Divider(height: 24),
-_toggleRow('位置情報をオン', locationOn, (v) => setState(() => locationOn = v)),
-_toggleRow('知り合いの現在地を更新', updateOn, (v) => setState(() => updateOn = v)),
-const Divider(height: 24),
-Row(
-  children: [
-    Expanded(
-      child: ElevatedButton(
-        onPressed: () async {
-          final seedService = UserSeedService();
-          await seedService.debugFirestoreData();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Firestoreデータをコンソールで確認してください')),
-            );
-          }
-        },
-        child: const Text('Firebase データ確認'),
-      ),
-    ),
-    const SizedBox(width: 8),
-    Expanded(
-      child: ElevatedButton(
-        onPressed: () async {
-          final firebaseRepo = FirebaseUserRepository();
-          await firebaseRepo.initializeCurrentUser();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('新規ユーザーとして再初期化しました')),
-            );
-          }
-        },
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-        child: const Text('ユーザー初期化'),
-      ),
-    ),
-  ],
-),
+_toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
+_toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
+
 ],
 ),
 ),
