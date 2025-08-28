@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../../core/router/app_routes.dart';
 
 
@@ -33,14 +35,11 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 		try {
 			final manifestContent = await rootBundle.loadString('AssetManifest.json');
 			final Map<String, dynamic> manifestMap = json.decode(manifestContent) as Map<String, dynamic>;
-					// Prefer icons under lib/images/select_icon/ (user-provided path). Fallback to lib/images/icon/ or any select_icon paths.
-					var imgs = manifestMap.keys.where((k) => k.contains('lib/images/select_icon/')).toList();
-					if (imgs.isEmpty) imgs = manifestMap.keys.where((k) => k.contains('lib/images/icon/')).toList();
-					if (imgs.isEmpty) imgs = manifestMap.keys.where((k) => k.contains('select_icon/')).toList();
-					imgs.sort();
-							if (imgs.isNotEmpty) {
-								setState(() => icons = imgs);
-							}
+			// 透明背景アイコンのみ（lib/images/select_icon/）に限定
+			final imgs = manifestMap.keys.where((k) => k.contains('lib/images/select_icon/')).toList()..sort();
+			if (imgs.isNotEmpty) {
+				setState(() => icons = imgs);
+			}
 		} catch (e) {
 			// Leave icons empty to fall back to emoji list in UI
 		}
@@ -53,7 +52,8 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 			final data = doc.data();
 			final saved = (data?['photoUrl'] ?? data?['avatarUrl']) as String?;
-			if (saved != null && saved.isNotEmpty) {
+			// 青背景（旧パス lib/images/icon/）は候補に含めない
+			if (saved != null && saved.isNotEmpty && !saved.contains('lib/images/icon/')) {
 				if (!icons.contains(saved)) {
 					setState(() => icons = [saved, ...icons]);
 				}
@@ -61,20 +61,51 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 		} catch (_) {}
 	}
 
+	String _basename(String path) {
+		final parts = path.split('/');
+		return parts.isNotEmpty ? parts.last : 'icon.png';
+	}
+
+	Future<String?> _uploadToStorage(String assetPath) async {
+		try {
+			final user = FirebaseAuth.instance.currentUser;
+			if (user == null) return null;
+			final data = await rootBundle.load(assetPath);
+			final Uint8List bytes = data.buffer.asUint8List();
+			final fileName = _basename(assetPath);
+			final ref = FirebaseStorage.instance.ref().child('profile_photos/${user.uid}/$fileName');
+			final metadata = SettableMetadata(contentType: 'image/png');
+			await ref.putData(bytes, metadata);
+			final url = await ref.getDownloadURL();
+			return url;
+		} catch (e) {
+			return null;
+		}
+	}
+
 	Future<void> _persistSelection() async {
 		final user = FirebaseAuth.instance.currentUser;
 		if (user == null) return;
 		final firestore = FirebaseFirestore.instance;
-		final avatarUrl = selected == 'emoji_fallback' || selected == null ? null : selected;
+		final chosen = selected == 'emoji_fallback' || selected == null ? null : selected;
+		if (chosen == null) return;
+
 		try {
-			if (avatarUrl != null) {
-				await user.updatePhotoURL(avatarUrl);
+			String? urlToSave;
+			final isNetwork = chosen.startsWith('http://') || chosen.startsWith('https://');
+			if (isNetwork) {
+				urlToSave = chosen;
+			} else {
+				urlToSave = await _uploadToStorage(chosen);
 			}
-			await firestore.collection('users').doc(user.uid).set({
-				'avatarUrl': avatarUrl,
-				'photoUrl': avatarUrl,
-				'updatedAt': DateTime.now().toIso8601String(),
-			}, SetOptions(merge: true));
+
+			if (urlToSave != null) {
+				await user.updatePhotoURL(urlToSave);
+				await firestore.collection('users').doc(user.uid).set({
+					'photoUrl': urlToSave,
+					'updatedAt': DateTime.now().toIso8601String(),
+				}, SetOptions(merge: true));
+			}
 		} catch (e) {
 			// ignore and proceed
 		}

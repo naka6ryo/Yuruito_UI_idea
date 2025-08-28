@@ -9,7 +9,6 @@ import '../../../domain/entities/user.dart';
 import '../../settings/presentation/settings_screen.dart';
 import '../../settings/presentation/profile_settings_screen.dart';
 import '../../settings/presentation/privacy_settings_screen.dart';
-import '../../../data/services/user_seed_service.dart';
 
 class MyProfileScreen extends StatefulWidget {
   const MyProfileScreen({super.key});
@@ -31,17 +30,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
   void initState() {
     super.initState();
     _loadCurrentUser();
-  }
-
-  Future<void> _removeTestUsers() async {
-    try {
-      await UserSeedService().removeTestUsers();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('テストデータを削除しました')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('削除エラー: $e')));
-    }
   }
 
   Future<void> _loadCurrentUser() async {
@@ -149,12 +137,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         );
                       },
                     ),
-                    if (kDebugMode)
-                      IconButton(
-                        tooltip: 'テストデータ削除',
-                        icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                        onPressed: _removeTestUsers,
-                      ),
                   ],
                 ),
                 body: _isLoading
@@ -197,12 +179,6 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
               );
             },
           ),
-          if (kDebugMode)
-            IconButton(
-              tooltip: 'テストデータ削除',
-              icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-              onPressed: _removeTestUsers,
-            ),
         ],
       ),
       body: _isLoading
