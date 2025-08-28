@@ -393,7 +393,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           circleId: CircleId('intimacy_circle_${u.id}'),
                           center: LatLng(u.lat!, u.lng!),
                           radius: 40,
-                          fillColor: lvlColor.withOpacity(0.18),
+                          fillColor: lvlColor.withValues(alpha: 0.18),
                           strokeColor: lvlColor,
                           strokeWidth: stroke,
                         ));
@@ -584,53 +584,14 @@ class MapProfileModal extends StatefulWidget {
 
 class _MapProfileModalState extends State<MapProfileModal> {
   final ChatService _chatService = FirebaseChatService();
-  final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> _messages = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    // Mapプロフィールからは過去のメッセージを読み込まない
   }
 
   String get _roomId => widget.user.id;
-
-  Future<void> _loadMessages() async {
-    try {
-      final loaded = await _chatService.loadMessages(_roomId);
-      setState(() {
-        _messages.clear();
-        _messages.addAll(loaded.map((m) => (
-          text: m.text,
-          sent: m.sent,
-          sticker: m.sticker,
-          from: m.from,
-          timestamp: DateTime.now()
-        )));
-        _isLoading = false;
-      });
-
-      // リアルタイムメッセージリスニング
-      _chatService.onMessage(_roomId).listen((m) {
-        if (mounted) {
-          setState(() {
-            _messages.add((
-              text: m.text,
-              sent: m.sent,
-              sticker: m.sticker,
-              from: m.from,
-              timestamp: DateTime.now()
-            ));
-          });
-        }
-      });
-    } catch (e) {
-      debugPrint('Error loading messages: $e');
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
 
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
@@ -704,51 +665,15 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
             ),
             
-            // メッセージリスト
+            // メッセージリスト（Mapからは履歴を表示しない）
             Expanded(
-              child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'まだメッセージがありません\n下から送信してみてください',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: ctrl,
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final message = _messages[index];
-                        final isMe = message.sent;
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          child: Row(
-                            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-                            children: [
-                              Container(
-                                constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.of(context).size.width * 0.7,
-                                ),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isMe ? AppTheme.blue500 : Colors.grey[200],
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  message.text,
-                                  style: TextStyle(
-                                    color: isMe ? Colors.white : Colors.black,
-                                    fontSize: message.sticker ? 24 : 14,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+              child: const Center(
+                child: Text(
+                  'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
             ),
             
             // 親密度ベースのメッセージ入力
