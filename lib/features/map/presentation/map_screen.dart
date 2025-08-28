@@ -513,6 +513,7 @@ class _MapScreenState extends State<MapScreen>
                           ),
                         );
 
+                        /* <- ここからコメントアウト
                         circles.add(
                           Circle(
                             circleId: const CircleId('me_circle'),
@@ -523,6 +524,7 @@ class _MapScreenState extends State<MapScreen>
                             strokeWidth: 2,
                           ),
                         );
+                        */
                       }
 
                       for (final u in users) {
@@ -551,6 +553,7 @@ class _MapScreenState extends State<MapScreen>
 
                         // Render intimacy circle based on server value (level 0..4)
                         final int? intimacyLevel = intimacyMap[u.id];
+                        /* <- ここからコメントアウト
                         if (intimacyLevel == 0) {
                           circles.add(
                             Circle(
@@ -580,6 +583,7 @@ class _MapScreenState extends State<MapScreen>
                             ),
                           );
                         }
+                        */ // <- ここまでコメントアウト
 
                         // Draw connecting polyline from me -> user based on intimacy or fallback to relationship
                         if (myAveragedLocation != null) {
