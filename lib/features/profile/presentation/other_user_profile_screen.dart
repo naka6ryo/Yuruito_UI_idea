@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
+import '../../chat/widgets/intimacy_message_widget.dart';
 
 class OtherUserProfileScreen extends StatelessWidget {
   final UserEntity user;
