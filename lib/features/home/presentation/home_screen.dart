@@ -24,6 +24,9 @@ bool proximityOn = true;
 bool dmOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
+// ▼ ここを追加（_HomeScreenState のフィールドに追記）
+Relationship? _relationFilter; // プルダウンの選択値（今回はUIのみで未使用）
+
 
 
 @override
@@ -126,7 +129,54 @@ StreamBuilder<List<UserEntity>>(
     );
   },
 ),
+
+// ▼▼▼ ここから挿入（リアルタイム情報カードの直後、知り合い見出しの前）▼▼▼
 const SizedBox(height: 12),
+Padding(
+  padding: const EdgeInsets.symmetric(vertical: 8),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      const Text(
+        '表示絞り込み',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+      DropdownButton<Relationship>(
+        value: _relationFilter, // 初期値は null（未選択）なので hint を表示
+        hint: const Text('選択してください'),
+        items: const [
+          DropdownMenuItem(
+            value: Relationship.passingMaybe,
+            child: Text('知り合いかも'),
+          ),
+          DropdownMenuItem(
+            value: Relationship.acquaintance,
+            child: Text('顔見知り'),
+          ),
+          DropdownMenuItem(
+            value: Relationship.friend,
+            child: Text('友達'),
+          ),
+          DropdownMenuItem(
+            value: Relationship.close,
+            child: Text('仲良し'),
+          ),
+        ],
+        onChanged: (rel) {
+          setState(() {
+            _relationFilter = rel;
+          });
+          // ※ ここでは UI の選択状態を保持するだけ（フィルタ処理はまだ実装しない）
+        },
+      ),
+    ],
+  ),
+),
+// ▲▲▲ ここまで挿入 ▲▲▲
+
+
+
+/*const SizedBox(height: 12),
 const Padding(
 padding: EdgeInsets.symmetric(vertical: 8),
 child: Text('新しい知り合い', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -139,7 +189,10 @@ if (list.isEmpty) return const SizedBox();
 final u = list.first;
 return UserCard(user: u);
 },
-),
+),*/
+
+
+
 const SizedBox(height: 12),
 const Padding(
 padding: EdgeInsets.symmetric(vertical: 8),
@@ -148,7 +201,27 @@ child: Text('知り合い', style: TextStyle(fontWeight: FontWeight.bold)),
 FutureBuilder(
 future: acquaintances,
 builder: (context, snap) {
-	final list = snap.data ?? <UserEntity>[];
+
+    void _debugCounts(List<UserEntity> xs) {
+      final m = {for (final r in Relationship.values) r: 0};
+      for (final u in xs) m[u.relationship] = (m[u.relationship] ?? 0) + 1;
+      m.forEach((k, v) => debugPrint('[$k] $v'));
+    }
+
+    // ここに挿入（sortの前）
+    final raw = (snap.data ?? <UserEntity>[]);
+    _debugCounts(raw);
+
+	final list = (snap.data ?? <UserEntity>[])
+    .where((u) => u.relationship != Relationship.none) // none だけ除外
+    .toList()
+  ..sort((a, b) => b.relationship.index.compareTo(a.relationship.index));
+
+
+// snap.data が null のときは空リストにする
+
+
+
 	if (list.isEmpty) return const SizedBox();
 	return Column(
 		children: list.map((u) => UserCard(user: u)).toList(),
@@ -170,3 +243,4 @@ Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged) {
 }
 
 }
+
