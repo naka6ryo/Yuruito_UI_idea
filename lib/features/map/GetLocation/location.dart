@@ -150,12 +150,24 @@ class LocationService {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         debugPrint("位置情報の許可がありません。");
+        if (uid != null) {
+          await _firestore.collection('profiles').doc(uid).set({
+            'islogin': false,
+            'updatedAt': DateTime.now().toIso8601String(),
+          }, SetOptions(merge: true));
+        }
         return;
       }
 
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         debugPrint("位置情報サービスが無効です。");
+        if (uid != null) {
+          await _firestore.collection('profiles').doc(uid).set({
+            'islogin': false,
+            'updatedAt': DateTime.now().toIso8601String(),
+          }, SetOptions(merge: true));
+        }
         return;
       }
 
@@ -182,6 +194,12 @@ class LocationService {
 
       if (positions.length < numberOfReadings) {
         debugPrint("必要な数の座標を取得できませんでした。");
+        if (uid != null) {
+          await _firestore.collection('profiles').doc(uid).set({
+            'islogin': false,
+            'updatedAt': DateTime.now().toIso8601String(),
+          }, SetOptions(merge: true));
+        }
         return;
       }
 
@@ -203,6 +221,10 @@ class LocationService {
           // [mainの改善点③] Firestoreへ保存する前に、座標が不正な値でないかチェック
           if (!averageLat.isFinite || !averageLng.isFinite) {
             debugPrint('無効な座標値のため保存をスキップ: Lat=$averageLat, Lng=$averageLng');
+            await _firestore.collection('profiles').doc(uid).set({
+              'islogin': false,
+              'updatedAt': DateTime.now().toIso8601String(),
+            }, SetOptions(merge: true));
             return;
           }
 
@@ -218,7 +240,13 @@ class LocationService {
             'text_from': null, // メッセージ送信者UID用
           }, SetOptions(merge: true));
 
-          debugPrint('✅ Firestore保存成功: locations/$uid');
+          // profiles/islogin を true に更新
+          await _firestore.collection('profiles').doc(uid).set({
+            'islogin': true,
+            'updatedAt': timestamp,
+          }, SetOptions(merge: true));
+
+          debugPrint('✅ Firestore保存成功: locations/$uid と profiles/$uid.islogin=true');
           
           // 定期的に期限切れメッセージをクリーンアップ
           _cleanupExpiredMessages();

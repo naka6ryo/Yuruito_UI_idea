@@ -77,8 +77,8 @@ children: [
 											final isOnline = DateTime.now().difference(updated).inMinutes < 5;
 											return isOnline ? const Text('オンライン') : const SizedBox.shrink();
 										},
-									),
-							trailing: const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U')),
+								),
+							trailing: _buildMyAvatar(),
 						),
 const Divider(height: 24),
 _toggleRow('位置情報許可', locationOn, (v) => setState(() => locationOn = v)),
@@ -97,37 +97,47 @@ child: Text('リアルタイム情報', style: TextStyle(fontWeight: FontWeight.
 StreamBuilder<List<UserEntity>>(
   stream: repo.watchAllUsersWithLocations(),
   builder: (context, snapshot) {
-    final userCount = snapshot.data?.length ?? 0;
-    final isLoading = snapshot.connectionState == ConnectionState.waiting;
-    
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final allUsers = snapshot.data ?? <UserEntity>[];
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('profiles').where('islogin', isEqualTo: true).snapshots(),
+      builder: (context, profSnap) {
+        final onlineIds = {
+          if (profSnap.hasData)
+            ...profSnap.data!.docs.map((d) => d.id)
+        };
+        final filtered = allUsers.where((u) => onlineIds.contains(u.id)).toList();
+        final userCount = filtered.length;
+        final isLoading = snapshot.connectionState == ConnectionState.waiting || profSnap.connectionState == ConnectionState.waiting;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
-                const Text('オンラインユーザー', style: TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                                     isLoading ? '読み込み中...' : '$userCount人',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: userCount > 0 ? Colors.green : Colors.grey,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('オンラインユーザー', style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                      isLoading ? '読み込み中...' : '$userCount人',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: userCount > 0 ? Colors.green : Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '新しいユーザーがログインすると、リアルタイムでマップに表示されます',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              '新しいユーザーがログインすると、リアルタイムでマップに表示されます',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   },
 ),
@@ -193,7 +203,7 @@ child: Text('新しい知り合い', style: TextStyle(fontWeight: FontWeight.bol
 FutureBuilder(
 future: newAcq,
 builder: (context, snap) {
-final list = (snap.data ?? <UserEntity>[]).where((u) => u.relationship == Relationship.passingMaybe).toList();
+final list = (snap.data ?? <UserEntity>[])..where((u) => u.relationship == Relationship.passingMaybe).toList();
 if (list.isEmpty) return const SizedBox();
 final u = list.first;
 return UserCard(user: u);
@@ -256,6 +266,31 @@ Widget _toggleRow(String label, bool value, ValueChanged<bool> onChanged) {
 			Switch(value: value, onChanged: onChanged),
 		],
 	);
+}
+
+Widget _buildMyAvatar() {
+  final user = _auth.currentUser;
+  if (user == null) {
+    return const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U'));
+  }
+  return StreamBuilder<DocumentSnapshot>(
+    stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+    builder: (context, snap) {
+      String? photo;
+      if (snap.hasData && snap.data!.exists) {
+        final data = snap.data!.data() as Map<String, dynamic>?;
+        photo = (data?['photoUrl'] ?? data?['avatarUrl']) as String?;
+      }
+      photo ??= user.photoURL;
+      if (photo == null || photo.isEmpty) {
+        return const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U'));
+      }
+      if (photo.startsWith('http://') || photo.startsWith('https://')) {
+        return CircleAvatar(radius: 28, backgroundImage: NetworkImage(photo));
+      }
+      return CircleAvatar(radius: 28, backgroundImage: AssetImage(photo));
+    },
+  );
 }
 
 }
