@@ -4,8 +4,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'features/map/GetLocation/location.dart';
-import 'data/services/user_seed_service.dart';
 import 'data/repositories/firebase_user_repository.dart';
+import 'data/services/user_seed_service.dart';
 
 
 void main() async {
@@ -21,17 +21,12 @@ void main() async {
   FirebaseAuth.instance.authStateChanges().listen((user) async {
     if (user != null) {
       debugPrint('🔐 ユーザーログイン: ${user.email} (UID: ${user.uid})');
-      
       // まず現在のユーザーを初期化
       final userRepo = FirebaseUserRepository();
       await userRepo.initializeCurrentUser();
-      
-      // テストユーザーを初期化（デモ用）
-      final userSeedService = UserSeedService();
-      await userSeedService.seedTestUsers();
-      
-      debugPrint('🗺️ すべてのユーザーがマップに表示されるようになりました');
-      await userSeedService.debugFirestoreData(); // デバッグ用
+
+      // テストデータをクリーンアップ（実行後この呼び出しを削除可）
+      await UserSeedService().removeTestUsers();
     } else {
       debugPrint('🚪 ユーザーログアウト');
     }

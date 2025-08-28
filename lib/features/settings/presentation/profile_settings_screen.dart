@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../data/services/firebase_settings_service.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
@@ -127,15 +128,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                     style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
                   ),
                   actions: [
-                    TextButton(
-                      onPressed: _isSaving ? null : _saveProfile,
-                      child: _isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('保存'),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Text('保存'),
+                      ),
                     ),
                   ],
                 ),
@@ -163,15 +169,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
         ),
         actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _saveProfile,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('保存'),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _saveProfile,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: _isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('保存'),
+            ),
           ),
         ],
       ),
@@ -186,74 +197,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // プロフィール画像
+        // プロフィール画像（URL入力は廃止）
         Center(
-          child: Stack(
-            children: [
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey[300],
-                backgroundImage: _profile['avatarUrl'] != null ? NetworkImage(_profile['avatarUrl']) : null,
-                child: _profile['avatarUrl'] == null ? Icon(Icons.person, size: 50, color: Colors.grey[600]) : null,
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.blue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                    onPressed: () async {
-                      // Simple image selection via entering an image URL (no extra dependency)
-                      final urlCtrl = TextEditingController(text: _profile['avatarUrl'] ?? '');
-                      final result = await showDialog<String?>(
-                        context: context,
-                        builder: (ctx) {
-                          return AlertDialog(
-                            title: const Text('画像URLを入力'),
-                            content: TextField(
-                              controller: urlCtrl,
-                              decoration: const InputDecoration(hintText: 'https://...'),
-                              keyboardType: TextInputType.url,
-                            ),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('キャンセル')),
-                              ElevatedButton(
-                                onPressed: () => Navigator.of(ctx).pop(urlCtrl.text.trim()),
-                                child: const Text('保存'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-
-                      if (result != null && result.isNotEmpty) {
-                        final url = result;
-                        setState(() => _isSaving = true);
-                        try {
-                          await _settingsService.updateUserProfile({'avatarUrl': url});
-                          setState(() {
-                            _profile['avatarUrl'] = url;
-                          });
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('プロフィール画像を更新しました')));
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('画像更新に失敗しました: $e')));
-                          }
-                        } finally {
-                          setState(() => _isSaving = false);
-                        }
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
+          child: CircleAvatar(
+            radius: 50,
+            backgroundColor: Colors.grey[300],
+            backgroundImage: _profile['avatarUrl'] != null ? NetworkImage(_profile['avatarUrl']) : null,
+            child: _profile['avatarUrl'] == null ? Icon(Icons.person, size: 50, color: Colors.grey[600]) : null,
           ),
         ),
         const SizedBox(height: 32),
@@ -284,7 +234,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
-                  maxLength: 20,
+                  maxLength: 7,
+                  inputFormatters: [
+                    // ひらがな・カタカナ・アルファベットのみ許可（漢字は不可）
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[A-Za-z\u3041-\u3096\u30A0-\u30FF]+'),
+                    ),
+                  ],
                 ),
               ],
             ),
