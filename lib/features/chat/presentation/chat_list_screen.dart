@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../profile/presentation/other_profile_screen.dart';
 import 'chat_room_screen.dart';
-import '../../../data/repositories/user_repository_stub.dart';
+import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
 
@@ -19,7 +19,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
 	@override
 	void initState() {
 		super.initState();
-		_future = StubUserRepository().fetchAcquaintances(); // excludes passingMaybe
+		_future = FirebaseUserRepository().fetchAcquaintances(); // excludes passingMaybe
 	}
 
 	@override

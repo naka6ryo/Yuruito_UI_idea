@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../utils/google_maps_loader.dart';
 import '../state/map_controller.dart';
 import '../../chat/presentation/chat_room_screen.dart';
-import '../../../data/repositories/user_repository_stub.dart';
+import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
 import '../../../features/map/GetLocation/location.dart';
@@ -232,20 +232,25 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   Future<List<dynamic>> _prepareData() async {
     // Ensure maps (on web) is ready, then fetch users and generate icons for relationships.
     await waitForMaps();
-    final users = await StubUserRepository().fetchAllUsers();
+    
+    // Firebase版のユーザーリポジトリを使用
+    final firebaseRepo = FirebaseUserRepository();
+    await firebaseRepo.initializeCurrentUser(); // 現在のユーザーをFirestoreに初期化
+    final users = await firebaseRepo.fetchAllUsers();
+    
     // Pre-generate per-user icons that include the circular pin + a speech-bubble label below.
     final Map<String, BitmapDescriptor> userIcons = {};
     for (final u in users) {
       userIcons[u.id] = await _markerForUser(u);
     }
 
-  // Always prepare a 'me' icon. If the user is not authenticated, fall back to the name 'Me'.
-  final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
-  final BitmapDescriptor meIcon = await _markerForMe(meName);
+    // Always prepare a 'me' icon. If the user is not authenticated, fall back to the name 'Me'.
+    final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
+    final BitmapDescriptor meIcon = await _markerForMe(meName);
 
-  // We no longer read averaged location from Firestore here; LocationService
-  // maintains the latest averaged location locally (ValueNotifier).
-  return [users, userIcons, meIcon];
+    // We no longer read averaged location from Firestore here; LocationService
+    // maintains the latest averaged location locally (ValueNotifier).
+    return [users, userIcons, meIcon];
   }
 
   @override
@@ -256,8 +261,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         // Prepare data: wait for maps and users, then generate icons for relationships.
         future: _prepareData(),
         builder: (context, snap) {
-          // snap.data will be [List<UserEntity>, Map<Relationship, BitmapDescriptor>]
-            if (snap.hasError) {
+          if (snap.hasError) {
             // If waitForMaps throws on web, show a clear message instead of crashing.
             return Center(
               child: Padding(
@@ -281,99 +285,124 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           }
 
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
-          final users = (snap.data![0] as List<UserEntity>);
           final BitmapDescriptor? meIcon = snap.data!.length > 2 ? snap.data![2] as BitmapDescriptor? : null;
 
-          return ValueListenableBuilder<LatLng?>(
-            valueListenable: LocationService().currentAverage,
-            builder: (context, myAveragedLocation, _) {
-              final markers = <Marker>{};
-              final Set<Circle> circles = {};
-              final Set<Polyline> polylines = {};
-                if (myAveragedLocation != null) {
-                // Add custom marker for 'me' using generated icon when available
-                final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
-                // Marker.anchor requires a non-null Offset (x,y) in [0..1]
-                final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
-                markers.add(Marker(
-                  markerId: const MarkerId('me'),
-                  position: myAveragedLocation,
-                  icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                  anchor: Offset(meAnchor.dx, meAnchor.dy),
-                  // Remove the small built-in InfoWindow and open full profile modal on first tap.
-                  infoWindow: InfoWindow.noText,
-                  onTap: () => _showProfileModal(context, meName, '現在地（平均）', const Color(0xFF3B82F6)),
-                ));
+          // Firestoreからリアルタイムでユーザー位置情報を取得
+          return StreamBuilder<List<UserEntity>>(
+            stream: FirebaseUserRepository().watchAllUsersWithLocations(),
+            builder: (context, userSnapshot) {
+              final users = userSnapshot.data ?? [];
+              
+              return ValueListenableBuilder<LatLng?>(
+                valueListenable: LocationService().currentAverage,
+                builder: (context, myAveragedLocation, _) {
+                  // 動的にユーザーアイコンを生成（新しいユーザーがログインした場合に対応）
+                  final Set<String> newUserIds = users.map((u) => u.id).toSet();
+                  final Set<String> existingUserIds = icons.keys.toSet();
+                  final Set<String> missingUserIds = newUserIds.difference(existingUserIds);
+                  
+                  // 新しいユーザーのアイコンを非同期で生成
+                  for (final userId in missingUserIds) {
+                    final user = users.firstWhere((u) => u.id == userId);
+                    _markerForUser(user).then((icon) {
+                      if (mounted) {
+                        setState(() {
+                          icons[userId] = icon;
+                        });
+                      }
+                    });
+                  }
 
-                // Add a blue translucent circle under the marker
-                circles.add(Circle(
-                  circleId: const CircleId('me_circle'),
-                  center: myAveragedLocation,
-                  radius: 50,
-                  fillColor: const Color(0x553B82F6),
-                  strokeColor: const Color(0xFF3B82F6),
-                  strokeWidth: 2,
-                ));
-              }
-
-              for (final u in users) {
-                if (u.lat != null && u.lng != null) {
-                  final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-          // Use the computed anchor if available, otherwise bottom-center.
-          markers.add(
-                    Marker(
-                      markerId: MarkerId(u.id),
-                      position: LatLng(u.lat!, u.lng!),
-                      icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-            anchor: Offset(anchor.dx, anchor.dy),
-                      // Do not show the small InfoWindow bubble. Open the full profile modal on first tap.
-                      infoWindow: InfoWindow.noText,
-                      onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
-                    ),
-                  );
-                  // If we have our averaged location, draw a connecting polyline from me -> user
+                  final markers = <Marker>{};
+                  final Set<Circle> circles = {};
+                  final Set<Polyline> polylines = {};
+                  
                   if (myAveragedLocation != null) {
-                    // Do not draw lines to users marked as 'passingMaybe'
-                    if (u.relationship != Relationship.passingMaybe) {
-                      final styleColor = _polylineColorForRelationship(u.relationship);
-                      final width = _polylineWidthForRelationship(u.relationship);
-                      polylines.add(Polyline(
-                        polylineId: PolylineId('conn_${u.id}'),
-                        points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
-                        color: styleColor,
-                        width: width,
-                        jointType: JointType.round,
-                        startCap: Cap.roundCap,
-                        endCap: Cap.roundCap,
-                      ));
+                    // Add custom marker for 'me' using generated icon when available
+                    final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
+                    // Marker.anchor requires a non-null Offset (x,y) in [0..1]
+                    final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
+                    markers.add(Marker(
+                      markerId: const MarkerId('me'),
+                      position: myAveragedLocation,
+                      icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                      anchor: Offset(meAnchor.dx, meAnchor.dy),
+                      // Remove the small built-in InfoWindow and open full profile modal on first tap.
+                      infoWindow: InfoWindow.noText,
+                      onTap: () => _showProfileModal(context, meName, '現在地（平均）', const Color(0xFF3B82F6)),
+                    ));
+
+                    // Add a blue translucent circle under the marker
+                    circles.add(Circle(
+                      circleId: const CircleId('me_circle'),
+                      center: myAveragedLocation,
+                      radius: 50,
+                      fillColor: const Color(0x553B82F6),
+                      strokeColor: const Color(0xFF3B82F6),
+                      strokeWidth: 2,
+                    ));
+                  }
+
+                  for (final u in users) {
+                    if (u.lat != null && u.lng != null) {
+                      final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
+                      // Use the computed anchor if available, otherwise bottom-center.
+                      markers.add(
+                        Marker(
+                          markerId: MarkerId(u.id),
+                          position: LatLng(u.lat!, u.lng!),
+                          icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                          anchor: Offset(anchor.dx, anchor.dy),
+                          // Do not show the small InfoWindow bubble. Open the full profile modal on first tap.
+                          infoWindow: InfoWindow.noText,
+                          onTap: () => _showProfileModal(context, u.name, u.relationship.label, _colorForRelationship(u.relationship)),
+                        ),
+                      );
+                      // If we have our averaged location, draw a connecting polyline from me -> user
+                      if (myAveragedLocation != null) {
+                        // Do not draw lines to users marked as 'passingMaybe'
+                        if (u.relationship != Relationship.passingMaybe) {
+                          final styleColor = _polylineColorForRelationship(u.relationship);
+                          final width = _polylineWidthForRelationship(u.relationship);
+                          polylines.add(Polyline(
+                            polylineId: PolylineId('conn_${u.id}'),
+                            points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                            color: styleColor,
+                            width: width,
+                            jointType: JointType.round,
+                            startCap: Cap.roundCap,
+                            endCap: Cap.roundCap,
+                          ));
+                        }
+                      }
                     }
                   }
-                }
-              }
 
-              // Decide initial camera center: prefer local averaged location, then first user, then default Tokyo.
-              LatLng initialCenter;
-              if (myAveragedLocation != null) {
-                initialCenter = myAveragedLocation;
-              } else {
-                final initialUser = users.firstWhere(
-                  (u) => u.lat != null && u.lng != null,
-                  orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
-                );
-                initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
-              }
+                  // Decide initial camera center: prefer local averaged location, then first user, then default Tokyo.
+                  LatLng initialCenter;
+                  if (myAveragedLocation != null) {
+                    initialCenter = myAveragedLocation;
+                  } else {
+                    final initialUser = users.firstWhere(
+                      (u) => u.lat != null && u.lng != null,
+                      orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
+                    );
+                    initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
+                  }
 
-              return GoogleMap(
-                style: _noLabelsMapStyle,
-                initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
-                markers: markers,
-                circles: circles,
-                polylines: polylines,
-                myLocationEnabled: false,
-                myLocationButtonEnabled: false,
-                onMapCreated: (controller) {
-                  _mapController = controller;
-                  // style is applied via GoogleMap.style property above
+                  return GoogleMap(
+                    style: _noLabelsMapStyle,
+                    initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
+                    markers: markers,
+                    circles: circles,
+                    polylines: polylines,
+                    myLocationEnabled: false,
+                    myLocationButtonEnabled: false,
+                    onMapCreated: (controller) {
+                      _mapController = controller;
+                      // style is applied via GoogleMap.style property above
+                    },
+                  );
                 },
               );
             },
