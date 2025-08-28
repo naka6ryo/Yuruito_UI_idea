@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../ShinmituDo/intimacy_calculator.dart'; // パスを修正
 
 class LocationService {
   // Singleton so multiple parts of the app can read the latest averaged location.
@@ -19,13 +20,14 @@ class LocationService {
   final ValueNotifier<LatLng?> currentAverage = ValueNotifier<LatLng?>(null);
 
   // 他のユーザーの位置情報を格納するMap
-  final ValueNotifier<Map<String, LatLng>> otherUsersLocations = ValueNotifier<Map<String, LatLng>>({});
+  final ValueNotifier<Map<String, LatLng>> otherUsersLocations =
+      ValueNotifier<Map<String, LatLng>>({});
 
   void startLocationUpdates() {
     if (_timer?.isActive ?? false) {
       return;
     }
-    
+
     // Firebase認証の完了を待ってから位置情報サービスを開始
     _waitForAuthAndStart();
   }
@@ -35,19 +37,19 @@ class LocationService {
     await for (final user in _auth.authStateChanges()) {
       if (user != null) {
         debugPrint("Firebase認証完了: ${user.uid}");
-        
+
         // 30秒に1回、位置情報の取得と送信プロセスを開始する
         _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
           _sendAverageLocation();
         });
         debugPrint("位置情報の自動更新を開始しました。");
-        
+
         // 最初の実行も行う
         _sendAverageLocation();
-        
+
         // 他のユーザーの位置情報監視も開始
         startWatchingOtherUsersLocations();
-        
+
         break; // 認証完了したらループを抜ける
       }
     }
@@ -60,32 +62,41 @@ class LocationService {
 
   /// 他のユーザーの位置情報をリアルタイムで監視開始
   void startWatchingOtherUsersLocations() {
-    _firestore.collection('locations').snapshots().listen((snapshot) {
-      final currentUserId = _auth.currentUser?.uid;
-      final Map<String, LatLng> locations = {};
+    _firestore
+        .collection('locations')
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final currentUserId = _auth.currentUser?.uid;
+            final Map<String, LatLng> locations = {};
 
-      for (final doc in snapshot.docs) {
-        // 自分自身は除外
-        if (doc.id == currentUserId) continue;
+            for (final doc in snapshot.docs) {
+              // 自分自身は除外
+              if (doc.id == currentUserId) continue;
 
-        try {
-          final data = doc.data();
-          if (data.containsKey('location')) {
-            final GeoPoint? geoPoint = data['location'] as GeoPoint?;
-            if (geoPoint != null) {
-              locations[doc.id] = LatLng(geoPoint.latitude, geoPoint.longitude);
+              try {
+                final data = doc.data();
+                if (data.containsKey('location')) {
+                  final GeoPoint? geoPoint = data['location'] as GeoPoint?;
+                  if (geoPoint != null) {
+                    locations[doc.id] = LatLng(
+                      geoPoint.latitude,
+                      geoPoint.longitude,
+                    );
+                  }
+                }
+              } catch (e) {
+                debugPrint('位置情報の解析エラー (${doc.id}): $e');
+              }
             }
-          }
-        } catch (e) {
-          debugPrint('位置情報の解析エラー (${doc.id}): $e');
-        }
-      }
 
-      otherUsersLocations.value = locations;
-      debugPrint('他のユーザーの位置情報を更新: ${locations.length}人');
-    }, onError: (error) {
-      debugPrint('他のユーザーの位置情報監視エラー: $error');
-    });
+            otherUsersLocations.value = locations;
+            debugPrint('他のユーザーの位置情報を更新: ${locations.length}人');
+          },
+          onError: (error) {
+            debugPrint('他のユーザーの位置情報監視エラー: $error');
+          },
+        );
   }
 
   /// 特定のユーザーの位置情報を取得
@@ -106,13 +117,13 @@ class LocationService {
   }
 
   /// 30秒ごとに呼び出され、位置情報を3回取得してその平均値をFirestoreに送信する
+  // location.dart の中の _sendAverageLocation 関数をこれに置き換えてください
+
   Future<void> _sendAverageLocation() async {
     // 1. 現在のユーザー情報を取得
     final User? currentUser = _auth.currentUser;
     final String? uid = currentUser?.uid;
     if (currentUser == null) {
-      // 未ログイン時でもローカルの currentAverage に値を入れて
-      // マップ表示で 'me' マーカーを見せたい。
       debugPrint("ユーザーがログインしていません。Firestore へは送信されません。");
     }
 
@@ -120,7 +131,6 @@ class LocationService {
       // 位置情報の許可を確認
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        // ユーザーに一度だけ許可をリクエストしてみる
         permission = await Geolocator.requestPermission();
       }
 
@@ -143,20 +153,20 @@ class LocationService {
 
       for (int i = 0; i < numberOfReadings; i++) {
         final Position pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
         );
         positions.add(pos);
         debugPrint(
           "${i + 1}回目の座標取得: Lat ${pos.latitude}, Lng ${pos.longitude}",
         );
 
-        // 最後以外は1秒待つ
         if (i < numberOfReadings - 1) {
           await Future.delayed(delayBetweenReadings);
         }
       }
 
-      //取得した3つの座標の平均を計算する
       if (positions.length < numberOfReadings) {
         debugPrint("必要な数の座標を取得できませんでした。");
         return;
@@ -172,50 +182,70 @@ class LocationService {
       final double averageLat = sumLat / positions.length;
       final double averageLng = sumLng / positions.length;
 
+      currentAverage.value = LatLng(averageLat, averageLng);
 
-      // update local cached averaged location so UI can read without Firestore
-      try {
-        currentAverage.value = LatLng(averageLat, averageLng);
-      } catch (_) {}
-
-      // 計算した平均座標を Firestore に送信するのはログイン済みのときだけ
       if (uid != null) {
         try {
-          if (uid.isNotEmpty) {
-            debugPrint('認証済みUID: $uid で位置情報をFirestoreに保存中...');
-            debugPrint('保存先パス: locations/$uid');
-            
-            final geoPoint = GeoPoint(averageLat, averageLng);
-            final timestamp = DateTime.now().toIso8601String();
-            debugPrint('保存データ: location=GeoPoint(${geoPoint.latitude}, ${geoPoint.longitude}), updatedAt=$timestamp');
-            
-            await _firestore.collection('locations').doc(uid).set({
-              'location': geoPoint,
-              'updatedAt': timestamp,
-            }, SetOptions(merge: true));
-            
-            debugPrint('✅ Firestore保存成功: locations/$uid');
-          }
+          final geoPoint = GeoPoint(averageLat, averageLng);
+
+          // ★★★ 改善案を反映 ★★★
+          // 文字列ではなくFirestoreのTimestamp型で保存
+          final timestamp = Timestamp.now();
+
+          await _firestore.collection('locations').doc(uid).set({
+            'location': geoPoint,
+            'updatedAt': timestamp,
+          }, SetOptions(merge: true));
+
+          debugPrint('✅ Firestore保存成功: locations/$uid');
         } catch (e) {
           debugPrint('❌ Failed to write averaged location to Firestore: $e');
-          debugPrint('認証状態: ${_auth.currentUser != null ? "ログイン済み" : "未ログイン"}');
-          debugPrint('UID: ${_auth.currentUser?.uid}');
-          debugPrint('Email: ${_auth.currentUser?.email}');
-          debugPrint('エラー詳細: ${e.runtimeType}');
-          if (e.toString().contains('permission-denied')) {
-            debugPrint('📝 解決方法: Firebase Console → Firestore → ルール で認証済みユーザーの書き込みを許可してください');
-          }
-          return; // エラー時は成功メッセージを出さない
+          return;
         }
       } else {
         debugPrint('Skipping Firestore update because no authenticated user.');
-        return; // 未認証時は成功メッセージを出さない
+        return;
       }
-      if (uid.isNotEmpty) {
-        debugPrint(
-          "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
+
+      // uidがnullでないことは上でチェック済み
+      debugPrint(
+        "UID: $uid の平均位置情報（$numberOfReadings 点）を更新しました: Lat ${averageLat.toStringAsFixed(6)}, Lng ${averageLng.toStringAsFixed(6)}",
+      );
+
+      // ★★★ ここからが親密度計算の呼び出しコード ★★★
+
+      // IntimacyCalculatorのインスタンスを作成
+      final intimacyCalculator = IntimacyCalculator();
+
+      // 現在のユーザーの最新位置情報からPositionオブジェクトを作成
+      final currentUserPosition = Position(
+        latitude: averageLat,
+        longitude: averageLng,
+        timestamp: DateTime.now(),
+        accuracy: 0,
+        altitude: 0,
+        heading: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        altitudeAccuracy: 0.0,
+        headingAccuracy: 0.0,
+      );
+
+      // このサービスが既に取得している、他のユーザーのIDリストを取得
+      final List<String> otherUserIds = otherUsersLocations.value.keys.toList();
+
+      // 他のユーザー全員に対して、親密度チェックをループ実行
+      debugPrint('--- 🤝 他の全ユーザーとの親密度チェックを開始します (${otherUserIds.length}人)---');
+      for (String targetUserId in otherUserIds) {
+        // IntimacyCalculator側で自分自身との比較は除外されるため、ここでのチェックは不要
+        await intimacyCalculator.updateIntimacy(
+          uid!, // uidがnullでないことは上でチェック済みのため `!` を使用
+          currentUserPosition,
+          targetUserId,
         );
       }
+      debugPrint('--- ✅ 親密度チェックが完了しました ---');
+      // ★★★ ここまで ★★★
     } catch (e) {
       debugPrint("位置情報の取得または更新中にエラーが発生しました: ${e.toString()}");
     }
