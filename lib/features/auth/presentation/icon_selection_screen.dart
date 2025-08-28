@@ -97,8 +97,9 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			if (isNetwork) {
 				urlToSave = chosen;
 			} else {
-				// Firebase StorageにアップロードしてURLを取得
-				urlToSave = await _uploadToStorage(chosen);
+				// CORSエラーを回避するため、一時的にアセットパスを直接保存
+				urlToSave = chosen;
+				debugPrint('⚠️ CORS回避: アセットパスを直接保存: $chosen');
 			}
 
 			if (urlToSave != null) {

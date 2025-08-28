@@ -74,9 +74,11 @@ Future<void> _completeAndSave() async {
       });
       
       // 3) profile_questionnaires トップレベルコレクションにも保存
-      final profileQuestionnaireRef = FirebaseFirestore.instance.collection('profile_questionnaires').doc();
+      final questionnaireId = 'questionnaire_${uid}_${DateTime.now().millisecondsSinceEpoch}';
+      final profileQuestionnaireRef = FirebaseFirestore.instance.collection('profile_questionnaires').doc(questionnaireId);
       await profileQuestionnaireRef.set({
         'userId': uid,
+        'questionnaireId': questionnaireId,
         'one_word': answers[0] ?? '',
         'favorite_food': answers[1] ?? '',
         'like_work': answers[2] ?? '',
