@@ -49,7 +49,7 @@ class ConversationListScreen extends StatelessWidget {
                     Text(peerUid.isEmpty ? '相手なし' : peerUid),
                     if (label.isNotEmpty) Padding(
                       padding: const EdgeInsets.only(left: 8),
-                      child: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      child: _buildIntimacyBadge(label, level),
                     ),
                   ]),
                   subtitle: Text(lastMessage),
@@ -67,6 +67,50 @@ class ConversationListScreen extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  Widget _buildIntimacyBadge(String label, int level) {
+    Color badgeColor;
+    Color textColor;
+    
+    switch (level) {
+      case 1:
+        badgeColor = Colors.blue.withValues(alpha: 0.2);
+        textColor = Colors.blue;
+        break;
+      case 2:
+        badgeColor = Colors.green.withValues(alpha: 0.2);
+        textColor = Colors.green;
+        break;
+      case 3:
+        badgeColor = Colors.orange.withValues(alpha: 0.2);
+        textColor = Colors.orange;
+        break;
+      case 4:
+        badgeColor = Colors.red.withValues(alpha: 0.2);
+        textColor = Colors.red;
+        break;
+      default:
+        badgeColor = Colors.grey.withValues(alpha: 0.2);
+        textColor = Colors.grey;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: badgeColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: textColor, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: textColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../utils/google_maps_loader.dart';
 import '../state/map_controller.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
@@ -595,14 +596,35 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
+      // 1. 通常のDMに送信
       await _chatService.sendMessage(_roomId, (
         text: message,
         sent: true,
         sticker: isSticker,
         from: 'me'
       ));
+      
+      // 2. Firebaseのlocationsコレクションにも一時的に保存（1時間で消える）
+      await _saveTemporaryMapMessage(message);
     } catch (e) {
       debugPrint('Error sending message: $e');
+    }
+  }
+
+  Future<void> _saveTemporaryMapMessage(String message) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      
+      final now = DateTime.now();
+      await FirebaseFirestore.instance.collection('locations').doc(user.uid).update({
+        'text': message,
+        'text_time': now.toIso8601String(),
+      });
+      
+      debugPrint('一時的なメッセージをlocationsに保存: $message');
+    } catch (e) {
+      debugPrint('一時的なメッセージの保存エラー: $e');
     }
   }
 
@@ -665,14 +687,70 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
             ),
             
-            // メッセージリスト（Mapからは履歴を表示しない）
+            // 一時的なメッセージリスト（1時間以内のもののみ表示）
             Expanded(
-              child: const Center(
-                child: Text(
-                  'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
-                ),
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('locations')
+                    .doc(widget.user.id)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: Text('読み込み中...'));
+                  }
+                  
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
+                  final text = data?['text'] as String?;
+                  final textTimeStr = data?['text_time'] as String?;
+                  
+                  // 1時間以内のメッセージのみ表示
+                  if (text != null && text.isNotEmpty && textTimeStr != null) {
+                    final textTime = DateTime.parse(textTimeStr);
+                    final now = DateTime.now();
+                    final diff = now.difference(textTime);
+                    
+                    if (diff.inHours < 1) {
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            const Text(
+                              '最近のメッセージ (1時間以内)',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue[50],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(text),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${textTime.hour}:${textTime.minute.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  }
+                  
+                  return const Center(
+                    child: Text(
+                      'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  );
+                },
               ),
             ),
             

@@ -213,6 +213,8 @@ class LocationService {
           await _firestore.collection('locations').doc(uid).set({
             'location': geoPoint,
             'updatedAt': timestamp,
+            'text': '', // 一時的なメッセージ用
+            'text_time': null, // メッセージ送信時刻用
           }, SetOptions(merge: true));
 
           debugPrint('✅ Firestore保存成功: locations/$uid');
