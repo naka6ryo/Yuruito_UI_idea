@@ -41,33 +41,54 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
         // Load latest profileAnswers, or fallback to latest questionnaire history
         Map<String, dynamic>? answers;
         try {
-          final userDoc = await _firestore
-              .collection('users')
-              .doc(currentUser.uid)
+          // 1) まず profile_questionnaires から最新を取得（最優先）
+          final profileQuestionnaires = await _firestore
+              .collection('profile_questionnaires')
+              .where('userId', isEqualTo: currentUser.uid)
+              .orderBy('createdAt', descending: true)
+              .limit(1)
               .get();
-          final data = userDoc.data();
-          if (data != null && data['profileAnswers'] is Map<String, dynamic>) {
-            answers = Map<String, dynamic>.from(data['profileAnswers']);
+          
+          if (profileQuestionnaires.docs.isNotEmpty) {
+            final latestProfile = profileQuestionnaires.docs.first.data();
+            answers = {
+              'q1': latestProfile['one_word'] ?? '',
+              'q2': latestProfile['favorite_food'] ?? '',
+              'q3': latestProfile['like_work'] ?? '',
+              'q4': latestProfile['like_taste_sushi'] ?? '',
+              'q5': latestProfile['like_music_genre'] ?? '',
+              'q6': latestProfile['how_do_you_use_the_time'] ?? '',
+            };
           } else {
-            // try latest history
-            final hist = await _firestore
+            // 2) profile_questionnaires にない場合は users/{uid}.profileAnswers を確認
+            final userDoc = await _firestore
                 .collection('users')
                 .doc(currentUser.uid)
-                .collection('questionnaires')
-                .orderBy('createdAt', descending: true)
-                .limit(1)
                 .get();
-            if (hist.docs.isNotEmpty) {
-              final h = hist.docs.first.data();
-              answers = {
-                // map history keys to q1..q6 for rendering convenience
-                'q1': h['one_word'] ?? '',
-                'q2': h['favorite_food'] ?? '',
-                'q3': h['like_work'] ?? '',
-                'q4': h['like_taste_sushi'] ?? '',
-                'q5': h['like_music_genre'] ?? '',
-                'q6': h['how_do_you_use_the_time'] ?? '',
-              };
+            final data = userDoc.data();
+            if (data != null && data['profileAnswers'] is Map<String, dynamic>) {
+              answers = Map<String, dynamic>.from(data['profileAnswers']);
+            } else {
+              // 3) 最後に users/{uid}/questionnaires の最新履歴を確認
+              final hist = await _firestore
+                  .collection('users')
+                  .doc(currentUser.uid)
+                  .collection('questionnaires')
+                  .orderBy('createdAt', descending: true)
+                  .limit(1)
+                  .get();
+              if (hist.docs.isNotEmpty) {
+                final h = hist.docs.first.data();
+                answers = {
+                  // map history keys to q1..q6 for rendering convenience
+                  'q1': h['one_word'] ?? '',
+                  'q2': h['favorite_food'] ?? '',
+                  'q3': h['like_work'] ?? '',
+                  'q4': h['like_taste_sushi'] ?? '',
+                  'q5': h['like_music_genre'] ?? '',
+                  'q6': h['how_do_you_use_the_time'] ?? '',
+                };
+              }
             }
           }
         } catch (_) {}

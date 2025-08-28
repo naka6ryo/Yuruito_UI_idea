@@ -1,6 +1,7 @@
 {
   "projects": {
-    "git": "connecting-thread"
+    "git": "connecting-thread",
+    "default": "connecting-thread"
   },
   "targets": {},
   "etags": {}

@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../../../core/router/app_routes.dart';
 
 
+
 class IconSelectionScreen extends StatefulWidget {
 const IconSelectionScreen({super.key});
 @override
@@ -83,12 +84,12 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 		}
 	}
 
-	Future<void> _persistSelection() async {
+	Future<bool> _persistSelection() async {
 		final user = FirebaseAuth.instance.currentUser;
-		if (user == null) return;
+		if (user == null) return false;
 		final firestore = FirebaseFirestore.instance;
 		final chosen = selected == 'emoji_fallback' || selected == null ? null : selected;
-		if (chosen == null) return;
+		if (chosen == null) return false;
 
 		try {
 			String? urlToSave;
@@ -96,6 +97,7 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			if (isNetwork) {
 				urlToSave = chosen;
 			} else {
+				// Firebase StorageにアップロードしてURLを取得
 				urlToSave = await _uploadToStorage(chosen);
 			}
 
@@ -103,12 +105,21 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 				await user.updatePhotoURL(urlToSave);
 				await firestore.collection('users').doc(user.uid).set({
 					'photoUrl': urlToSave,
+					'avatarUrl': urlToSave,
 					'updatedAt': DateTime.now().toIso8601String(),
 				}, SetOptions(merge: true));
+				// profiles/{uid} にも photoUrl を保存（islogin など既存フィールドは維持）
+				await firestore.collection('profiles').doc(user.uid).set({
+					'photoUrl': urlToSave,
+					'updatedAt': DateTime.now().toIso8601String(),
+				}, SetOptions(merge: true));
+				return true;
 			}
 		} catch (e) {
-			// ignore and proceed
+			debugPrint('アイコン保存エラー: $e');
+			return false;
 		}
+		return false;
 	}
 
 
@@ -182,9 +193,17 @@ Widget build(BuildContext context) {
                       onPressed: selected == null
                           ? null
                           : () async {
-                              await _persistSelection();
+                              // 保存は待たずに次画面へ遷移（保存はバックグラウンドで実行）
+                              // ignore: unawaited_futures
+                              final success = await _persistSelection();
                               if (!mounted) return;
-                              Navigator.pushNamed(context, AppRoutes.questionnaire);
+                              if (success) {
+                                Navigator.pushNamed(context, AppRoutes.questionnaire);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('アイコンの保存に失敗しました。')),
+                                );
+                              }
                             },
                       child: const Text('次へ'),
                     ),

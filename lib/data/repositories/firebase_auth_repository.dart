@@ -61,12 +61,12 @@ class FirebaseAuthRepository implements AuthRepository {
       await user.updatePhotoURL(avatarUrl);
     }
 
-    // Firestore 側の初期ユーザーデータ作成
+    // Firestore 側の初期ユーザーデータ作成（photoUrl を標準キーに）
     await _firestore.collection('users').doc(user.uid).set({
       'name': name,
       'email': email,
       'bio': '新しく参加しました！',
-      'avatarUrl': avatarUrl,
+      'photoUrl': avatarUrl,
       'relationship': 'friend',
       'isOnline': true,
       'lastSeen': DateTime.now().toIso8601String(),
