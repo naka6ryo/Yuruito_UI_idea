@@ -634,8 +634,8 @@ class _MapProfileModalState extends State<MapProfileModal> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      maxChildSize: 0.9,
+      initialChildSize: 0.6,
+      maxChildSize: 0.8,
       minChildSize: 0.3,
       builder: (ctx, ctrl) => Container(
         decoration: const BoxDecoration(
@@ -673,7 +673,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  // ユーザー名表示を削除（既にヘッダーに表示）
+                  Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   Text(widget.user.relationship.label, style: TextStyle(color: AppTheme.blue500)),
                   const SizedBox(height: 8),
                   OutlinedButton(
@@ -796,7 +796,9 @@ class _MapProfileModalState extends State<MapProfileModal> {
             // 親密度ベースのメッセージ入力
             Container(
               padding: const EdgeInsets.all(16),
-              child: IntimacyMessageWidget(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: SingleChildScrollView(
+                child: IntimacyMessageWidget(
                 targetUserId: widget.user.id,
                 targetUserName: widget.user.name,
                 onSendMessage: (message, isSticker) async {
@@ -819,6 +821,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     );
                   }
                 },
+                ),
               ),
             ),
           ],

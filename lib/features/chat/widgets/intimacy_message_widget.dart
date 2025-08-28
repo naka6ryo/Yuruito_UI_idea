@@ -287,10 +287,6 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            widget.targetUserName,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          Text(
             _getIntimacyLevelText(),
             style: TextStyle(color: AppTheme.blue500, fontSize: 14),
           ),
