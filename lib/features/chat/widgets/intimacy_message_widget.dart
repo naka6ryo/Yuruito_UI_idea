@@ -269,58 +269,7 @@ class _IntimacyMessageWidgetState extends State<IntimacyMessageWidget> {
           ],
         );
 
-      case 5: // レベル5: 無制限テキスト + スタンプ
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // スタンプ選択
-            const Text('スタンプ：', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _stickerOptions.map((sticker) => GestureDetector(
-                onTap: () => _sendMessage(sticker, true),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.scaffoldBg,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.blue500),
-                  ),
-                  child: Text(sticker, style: const TextStyle(fontSize: 24)),
-                ),
-              )).toList(),
-            ),
-            const SizedBox(height: 16),
-            // テキスト入力（無制限）
-            const Text('メッセージ（制限なし）：', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      hintText: 'メッセージを入力...',
-                      counterText: '',
-                    ),
-                    onChanged: (text) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    final text = _controller.text.trim();
-                    if (text.isNotEmpty) {
-                      _sendMessage(text, false);
-                    }
-                  },
-                  icon: Icon(Icons.send, color: AppTheme.blue500),
-                ),
-              ],
-            ),
-          ],
-        );
+
 
       default:
         return const Text('エラー：不明な親密度レベル');
