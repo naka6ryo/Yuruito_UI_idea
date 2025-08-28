@@ -375,10 +375,6 @@ onTap: () {
     );
   }
 
-  String _formatDate(DateTime? date) {
-    if (date == null) return '未設定';
-    return '${date.year}年${date.month}月${date.day}日';
-  }
 
   Widget _buildProfileInfoCard(
     String question,

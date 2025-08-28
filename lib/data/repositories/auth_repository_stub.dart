@@ -30,4 +30,17 @@ return _current;
 Future<void> logout() async {
 _current = null;
 }
+
+@override
+Future<UserEntity?> signup({required String email, required String password, required String name, String? avatarUrl}) async {
+	// In the stub we simply create a UserEntity using the provided values.
+	_current = UserEntity(
+		id: email,
+		name: name,
+		bio: 'のんびり過ごしてます。',
+		avatarUrl: avatarUrl ?? 'https://placehold.co/96x96/3B82F6/FFFFFF.png?text=U',
+		relationship: Relationship.none,
+	);
+	return _current;
+}
 }

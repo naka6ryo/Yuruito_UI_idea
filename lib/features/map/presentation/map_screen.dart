@@ -842,7 +842,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               decoration: BoxDecoration(
                 color: AppTheme.scaffoldBg,
                 borderRadius: const BorderRadius.vertical(
@@ -857,7 +857,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                       IconButton(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close),
-                        color: Colors.grey[600],
+                        color: const Color.fromARGB(255, 107, 184, 235),
                       ),
                     ],
                   ),
@@ -881,7 +881,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     widget.user.relationship.label,
                     style: TextStyle(color: AppTheme.blue500),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   OutlinedButton(
                     onPressed: () {
                       Navigator.pop(context);
@@ -985,8 +985,8 @@ class _MapProfileModalState extends State<MapProfileModal> {
                           )),
             ),
             Container(
-              padding: const EdgeInsets.all(16),
-              constraints: const BoxConstraints(maxHeight: 200),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              constraints: const BoxConstraints(maxHeight: 310),
               child: SingleChildScrollView(
                 child: IntimacyMessageWidget(
                   targetUserId: widget.user.id,
@@ -1019,17 +1019,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
     );
   }
 
-  Future<void> _clearExpiredMessage() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('locations')
-          .doc(widget.user.id)
-          .update({'text': '', 'text_time': null, 'text_from': null});
-      debugPrint('期限切れメッセージを削除しました');
-    } catch (e) {
-      debugPrint('期限切れメッセージの削除エラー: $e');
-    }
-  }
+
 
   Future<String> _getUserName(String uid) async {
     try {
