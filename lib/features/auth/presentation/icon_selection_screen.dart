@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/router/app_routes.dart';
 
 
@@ -36,6 +38,25 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 							}
 		} catch (e) {
 			// Leave icons empty to fall back to emoji list in UI
+		}
+	}
+
+	Future<void> _persistSelection() async {
+		final user = FirebaseAuth.instance.currentUser;
+		if (user == null) return;
+		final firestore = FirebaseFirestore.instance;
+		final avatarUrl = selected == 'emoji_fallback' || selected == null ? null : selected;
+		try {
+			// Update Auth profile photoURL (store asset path string for now)
+			if (avatarUrl != null) {
+				await user.updatePhotoURL(avatarUrl);
+			}
+			await firestore.collection('users').doc(user.uid).set({
+				'avatarUrl': avatarUrl,
+				'updatedAt': DateTime.now().toIso8601String(),
+			}, SetOptions(merge: true));
+		} catch (e) {
+			// ignore and proceed
 		}
 	}
 
@@ -106,7 +127,13 @@ Widget build(BuildContext context) {
 										SizedBox(
 											width: double.infinity,
 											child: FilledButton(
-												onPressed: selected == null ? null : () => Navigator.pushNamed(context, AppRoutes.questionnaire),
+												onPressed: selected == null
+													? null
+													: () async {
+														await _persistSelection();
+														if (!mounted) return;
+														Navigator.pushNamed(context, AppRoutes.questionnaire);
+													},
 												child: const Text('次へ'),
 											),
 										),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -37,6 +39,31 @@ setState(() {
 index = next;
 ctrl.text = answers[index] ?? '';
 });
+}
+
+Future<void> _completeAndSave() async {
+  answers[index] = ctrl.text;
+  try {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      final data = <String, dynamic>{
+        'profileAnswers': {
+          'q1': answers[0] ?? '',
+          'q2': answers[1] ?? '',
+          'q3': answers[2] ?? '',
+          'q4': answers[3] ?? '',
+          'q5': answers[4] ?? '',
+          'q6': answers[5] ?? '',
+        },
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(data, SetOptions(merge: true));
+    }
+  } catch (e) {
+    // ignore write errors, still navigate
+  }
+  if (!mounted) return;
+  Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
 }
 
 
@@ -94,7 +121,7 @@ Widget build(BuildContext context) {
 													if (index < questions.length - 1) {
 														_goto(index + 1);
 													} else {
-														Navigator.pushNamedAndRemoveUntil(context, AppRoutes.shell, (_) => false);
+														_completeAndSave();
 													}
 												},
 												child: Text(index == questions.length - 1 ? '完了' : '次へ'),

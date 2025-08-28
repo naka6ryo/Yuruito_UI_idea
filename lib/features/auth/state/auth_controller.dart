@@ -45,6 +45,22 @@ class AuthController extends StateNotifier<AuthState> {
 		}
 	}
 
+	Future<void> signup({
+		required String email,
+		required String password,
+		required String name,
+		String? avatarUrl,
+	}) async {
+		state = state.copyWith(loading: true, errorMessage: null);
+		final repo = ref.read(authRepositoryProvider);
+		try {
+			final user = await repo.signup(email: email, password: password, name: name, avatarUrl: avatarUrl);
+			state = AuthState(user: user, loading: false);
+		} catch (e) {
+			state = AuthState(user: null, loading: false, errorMessage: e.toString());
+		}
+	}
+
 	Future<void> logout() async {
 		state = state.copyWith(loading: true);
 		final repo = ref.read(authRepositoryProvider);
