@@ -69,7 +69,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 	Widget build(BuildContext context) {
 		final state = ref.watch(authControllerProvider);
 		final screenWidth = MediaQuery.of(context).size.width;
-		const phoneWidthThreshold = 600.0; // same threshold as AppShell/LoginScreen
+		const phoneWidthThreshold = 900.0; // same threshold as AppShell/LoginScreen
 		final isWeb = kIsWeb;
 		final isNarrow = screenWidth < phoneWidthThreshold;
 

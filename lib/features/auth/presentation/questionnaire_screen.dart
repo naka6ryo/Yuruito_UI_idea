@@ -143,7 +143,7 @@ class _QuestionnaireScreenState extends State<QuestionnaireScreen> {
     final progress = (index + 1) / questions.length;
 
     final screenWidth = MediaQuery.of(context).size.width;
-    const phoneWidthThreshold = 600.0;
+  const phoneWidthThreshold = 900.0;
     final isWeb = kIsWeb;
     final isNarrow = screenWidth < phoneWidthThreshold;
 

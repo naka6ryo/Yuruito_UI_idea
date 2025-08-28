@@ -28,8 +28,48 @@ class _AppShellState extends State<AppShell> {
       const ChatListScreen(),
     ];
     // On web, render the app inside a centered, phone-like frame to match
-    // the reference `index.html` (aspect 9:19.5, max width ~384px).
+    // the reference `index.html` (aspect 9:19.5, max width ~384px). If the
+    // viewport is narrow (e.g. actual phone-sized), fall back to full-screen
+    // mobile layout instead of the centered frame.
     if (kIsWeb) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      const phoneWidthThreshold = 900.0;
+      final isNarrow = screenWidth < phoneWidthThreshold;
+
+      // When narrow, return the same full-screen scaffold used on native/mobile.
+      if (isNarrow) {
+        return Scaffold(
+          extendBodyBehindAppBar: false,
+          appBar: AppBar(
+            title: Header(title: _titles[_index]),
+            backgroundColor: Colors.white,
+            scrolledUnderElevation: 0,
+          ),
+          body: IndexedStack(index: _index, children: views),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'ホーム',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.travel_explore_outlined),
+                selectedIcon: Icon(Icons.travel_explore),
+                label: 'マップ',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.chat_bubble_outline),
+                selectedIcon: Icon(Icons.chat_bubble),
+                label: 'チャット',
+              ),
+            ],
+          ),
+        );
+      }
+
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0; // approx Tailwind's max-w-sm (24rem)
 
@@ -54,9 +94,9 @@ class _AppShellState extends State<AppShell> {
                   borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: Color.fromRGBO(0, 0, 0, 0.12),
+                      color: const Color.fromRGBO(0, 0, 0, 0.12),
                       blurRadius: 24,
-                      offset: Offset(0, 8),
+                      offset: const Offset(0, 8),
                     ),
                   ],
                 ),
