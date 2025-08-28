@@ -22,6 +22,7 @@ final repo = FirebaseUserRepository();
 final _auth = FirebaseAuth.instance;
 bool proximityOn = true;
 bool dmOn = true;
+bool locationOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
 // ▼ ここを追加（_HomeScreenState のフィールドに追記）
@@ -80,9 +81,10 @@ children: [
 							trailing: const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U')),
 						),
 const Divider(height: 24),
-_toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
+_toggleRow('位置情報許可', locationOn, (v) => setState(() => locationOn = v)),
+/*_toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
 _toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
-
+*/
 ],
 ),
 ),
@@ -141,26 +143,33 @@ Padding(
         '表示絞り込み',
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
-      DropdownButton<Relationship>(
+      DropdownButton<Relationship?>(
         value: _relationFilter, // 初期値は null（未選択）なので hint を表示
         hint: const Text('選択してください'),
         items: const [
-          DropdownMenuItem(
-            value: Relationship.passingMaybe,
-            child: Text('知り合いかも'),
+          DropdownMenuItem<Relationship?>(
+            value: null,
+            child: Text('全て'),
           ),
           DropdownMenuItem(
-            value: Relationship.acquaintance,
-            child: Text('顔見知り'),
+            value: Relationship.close,
+            child: Text('仲良し'),
           ),
           DropdownMenuItem(
             value: Relationship.friend,
             child: Text('友達'),
           ),
           DropdownMenuItem(
-            value: Relationship.close,
-            child: Text('仲良し'),
+            value: Relationship.acquaintance,
+            child: Text('顔見知り'),
           ),
+          DropdownMenuItem(
+            value: Relationship.passingMaybe,
+            child: Text('知り合いかも'),
+          ),
+          
+          
+          
         ],
         onChanged: (rel) {
           setState(() {
@@ -210,12 +219,19 @@ builder: (context, snap) {
 
     // ここに挿入（sortの前）
     final raw = (snap.data ?? <UserEntity>[]);
-    _debugCounts(raw);
+_debugCounts(raw);
 
-	final list = (snap.data ?? <UserEntity>[])
-    .where((u) => u.relationship != Relationship.none) // none だけ除外
-    .toList()
-  ..sort((a, b) => b.relationship.index.compareTo(a.relationship.index));
+// まず none だけ除外
+var list = raw.where((u) => u.relationship != Relationship.none).toList();
+
+// ▼ フィルタ：_relationFilter が null（=すべて）なら通す。非nullなら一致のみ。
+if (_relationFilter != null) {
+  list = list.where((u) => u.relationship == _relationFilter).toList();
+}
+
+// 並びは従来どおり（親密度の高い順）
+list.sort((a, b) => b.relationship.index.compareTo(a.relationship.index));
+
 
 
 // snap.data が null のときは空リストにする

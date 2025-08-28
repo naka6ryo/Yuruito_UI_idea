@@ -283,136 +283,66 @@ class _MyProfileScreenState extends State<MyProfileScreen> {
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildProfileInfoCard(
-                      'あなたを表す一言は？',
-                      _latestAnswers?['q1'] ?? 'のんびり過ごしてます。',
-                      Icons.mood,
-                      Colors.blue,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'つい頼んでしまう、好きな食べ物は？',
-                      _latestAnswers?['q2'] ?? 'ラーメン',
-                      Icons.restaurant,
-                      Colors.orange,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      '最近、夢中になっている作品は？',
-                      _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」',
-                      Icons.movie,
-                      Colors.purple,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'よく聴く、好きな音楽のジャンルは？',
-                      _latestAnswers?['q5'] ?? 'インディーズロック',
-                      Icons.music_note,
-                      Colors.green,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'お寿司屋さんで、これだけは外せないネタは？',
-                      _latestAnswers?['q4'] ?? 'サーモン',
-                      Icons.set_meal,
-                      Colors.red,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileInfoCard(
-                      'もし明日から寝なくても平気になったら、その時間をどう使う？',
-                      _latestAnswers?['q6'] ?? '見たかった映画を全部見る',
-                      Icons.schedule,
-                      Colors.teal,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // クイック設定（そのまま）
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'クイック設定',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.edit, color: Colors.blue),
-                      title: const Text('プロフィールを編集'),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ProfileSettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.privacy_tip,
-                        color: Colors.orange,
-                      ),
-                      title: const Text('プライバシー設定'),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacySettingsScreen(),
-                          ),
-                        );
-                      },
-                    ),
-
+),  
+),  
+const SizedBox(height: 16),  
+_buildProfileInfoCard(
+  'あなたを表す一言は？',
+  _latestAnswers?['q1'] ?? 'のんびり過ごしてます。',
+  Icons.mood,
+  Colors.blue,
+),  
+const SizedBox(height: 12),  
+_buildProfileInfoCard(
+  'つい頼んでしまう、好きな食べ物は？',
+  _latestAnswers?['q2'] ?? 'ラーメン',
+  Icons.restaurant,
+  Colors.orange,
+),  
+const SizedBox(height: 12),  
+_buildProfileInfoCard(
+  '最近、夢中になっている作品は？',
+  _latestAnswers?['q3'] ?? '海外ドラマ「フレンズ」',
+  Icons.movie,
+  Colors.purple,
+),  
+const SizedBox(height: 12),  
+_buildProfileInfoCard(
+  'よく聴く、好きな音楽のジャンルは？',
+  _latestAnswers?['q5'] ?? 'インディーズロック',
+  Icons.music_note,
+  Colors.green,
+),  
+const SizedBox(height: 12),  
+_buildProfileInfoCard(
+  'お寿司屋さんで、これだけは外せないネタは？',
+  _latestAnswers?['q4'] ?? 'サーモン',
+  Icons.set_meal,
+  Colors.red,
+),  
+const SizedBox(height: 12),  
+_buildProfileInfoCard(
+  'もし明日から寝なくても平気になったら、その時間をどう使う？',
+  _latestAnswers?['q6'] ?? '見たかった映画を全部見る',
+  Icons.schedule,
+  Colors.teal,
+),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.settings, color: Colors.grey),
                       title: const Text('詳細設定'),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.grey,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
+trailing: const Icon(
+  Icons.chevron_right,
+  color: Colors.grey,
+),
+onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const SettingsScreen(),
+    ),
+  );
+},
                         );
                       },
                     ),
