@@ -29,7 +29,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 		final state = ref.watch(authControllerProvider);
 
 		// Width used for the action buttons so "ログイン" and "新規登録" match.
-		final double actionButtonWidth = 180;
+		final double actionButtonWidth = 1300;
 
 		return Scaffold(
 			body: Center(
@@ -52,19 +52,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 											),
 											const SizedBox(height: 12),
 										],
-										const CircleAvatar(
-											radius: 36,
-											backgroundColor: Color(0xFFDBEAFE),
-											child: Icon(
-												Icons.travel_explore,
-												color: Color(0xFF3B82F6),
-												size: 36,
-											),
-										),
-										const SizedBox(height: 12),
-										const Text('ゆるいと', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-										const Text('ゆるいつながりSNS', style: TextStyle(color: Colors.grey)),
-										const SizedBox(height: 24),
+										// Replace the circle avatar and title with provided PNG logo.
+										// Place your PNG at `assets/login_logo.png`.
+										Image.asset('assets/login_logo.png', width: 192, height: 192, fit: BoxFit.contain),
+										const SizedBox(height: 0),
+										const Text('ふらっと出会う。ゆるっとつながる。', style: TextStyle(color: Color.fromARGB(255, 109, 177, 255))),
+										const SizedBox(height: 16),
 										TextField(controller: idCtrl, decoration: const InputDecoration(hintText: 'ID', filled: true)),
 										const SizedBox(height: 12),
 										TextField(controller: pwCtrl, obscureText: true, decoration: const InputDecoration(hintText: 'パスワード', filled: true)),
