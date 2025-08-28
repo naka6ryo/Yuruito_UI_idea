@@ -79,6 +79,18 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           from: m.from,
           timestamp: DateTime.now()
         )));
+        
+        // 新しいメッセージ受信時も下部にスクロール
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          await Future.delayed(const Duration(milliseconds: 100));
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
       }
     });
     
@@ -87,6 +99,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
       try {
         await _chatService.sendMessage(_roomId, msg);
+        
+        // 初期メッセージ送信後も下部にスクロール
+        if (mounted) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await Future.delayed(const Duration(milliseconds: 500));
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

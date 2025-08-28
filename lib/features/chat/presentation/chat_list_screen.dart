@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../profile/presentation/other_profile_screen.dart';
+import '../../profile/presentation/other_user_profile_screen.dart';
 import 'chat_room_screen.dart';
 import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
@@ -57,7 +57,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 ]),
 									subtitle: Text(u.bio, maxLines: 1, overflow: TextOverflow.ellipsis),
 									trailing: Text('', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-									onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OtherProfileScreen(name: u.name, status: u.relationship.label))),
+									onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: u))),
 								);
 							},
 						);
