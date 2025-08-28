@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/router/app_routes.dart';
 import '../../auth/state/auth_controller.dart';
+import 'profile_settings_screen.dart';
+import 'privacy_settings_screen.dart';
+import 'account_settings_screen.dart';
+import 'notification_settings_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -29,16 +33,58 @@ class SettingsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Group(title: 'プロフィール設定', items: ['名前の変更', '一言コメントの編集', 'アバターの変更']),
-              const _Group(title: 'プライバシー設定', items: ['位置情報の共有範囲', 'ブロックしたユーザー']),
-              const _Group(title: 'アカウント設定', items: ['メールアドレスの変更', 'パスワードの変更', 'SNS連携']),
-              _Group(title: 'その他', items: ['通知設定', 'ログアウト'], onTap: (label) async {
-                if (label == 'ログアウト') {
-                  final nav = Navigator.of(context);
-                  await ref.read(authControllerProvider.notifier).logout();
-                  nav.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
-                }
-              }),
+              _Group(
+                title: 'プロフィール設定', 
+                items: ['プロフィール編集'],
+                onTap: (label) {
+                  if (label == 'プロフィール編集') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileSettingsScreen()),
+                    );
+                  }
+                },
+              ),
+              _Group(
+                title: 'プライバシー設定', 
+                items: ['位置情報・プライバシー設定'],
+                onTap: (label) {
+                  if (label == '位置情報・プライバシー設定') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PrivacySettingsScreen()),
+                    );
+                  }
+                },
+              ),
+              _Group(
+                title: 'アカウント設定', 
+                items: ['アカウント管理'],
+                onTap: (label) {
+                  if (label == 'アカウント管理') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AccountSettingsScreen()),
+                    );
+                  }
+                },
+              ),
+              _Group(
+                title: 'その他', 
+                items: ['通知設定', 'ログアウト'], 
+                onTap: (label) async {
+                  if (label == '通知設定') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
+                    );
+                  } else if (label == 'ログアウト') {
+                    final nav = Navigator.of(context);
+                    await ref.read(authControllerProvider.notifier).logout();
+                    nav.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+                  }
+                },
+              ),
               const SizedBox(height: 24),
             ],
           ),
