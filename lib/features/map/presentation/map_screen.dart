@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_theme.dart';
 import 'package:provider/provider.dart' as legacy; // ChangeNotifier 用
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -29,9 +30,17 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
+enum PermissionStatus {
+  checking, // 確認中
+  granted, // 許可済み
+  denied, // 拒否
+}
+
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ac;
   GoogleMapController? _mapController;
+  PermissionStatus _permissionStatus = PermissionStatus.checking;
 
   // Map style that hides place names / POI / transit / administrative labels
   static const String _noLabelsMapStyle = '''
@@ -46,17 +55,60 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 ]
 ''';
 
-
   @override
   void initState() {
     super.initState();
-    _ac = AnimationController(vsync: this, duration: const Duration(milliseconds: 300))..forward();
+    _ac = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..forward();
+    _checkPermissionAndInitialize();
+  }
+
+  Future<void> _checkPermissionAndInitialize() async {
+    // ...許可チェックのロジックは変更なし...
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // サービスが無効な場合は、UIを「拒否」状態にして、この関数を終了する
+      if (mounted) {
+        setState(() => _permissionStatus = PermissionStatus.denied);
+      }
+      return; // returnで処理を中断するのが重要
+    }
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (mounted) {
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        // ★★★ ここからが変更箇所です ★★★
+
+        // 1. まず位置情報サービスを開始して、位置の取得を試みさせる
+        LocationService().startLocationUpdates();
+
+        // 2. 位置情報が取得できるまで1秒ごとにループして待つ
+        while (LocationService().currentAverage.value == null && mounted) {
+          // mountedフラグをチェックして、ウィジェットが存在しない場合はループを抜ける
+          await Future.delayed(const Duration(seconds: 1));
+        }
+
+        // 3. ループを抜けたら（位置が取得できたら）、状態を「許可済み」に更新
+        if (mounted) {
+          setState(() => _permissionStatus = PermissionStatus.granted);
+        }
+        // ★★★ ここまでが変更箇所です ★★★
+      } else {
+        setState(() => _permissionStatus = PermissionStatus.denied);
+      }
+    }
   }
 
   @override
   void dispose() {
-  _mapController?.dispose();
-  _ac.dispose();
+    _mapController?.dispose();
+    _ac.dispose();
     super.dispose();
   }
 
@@ -73,9 +125,18 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final color = const Color(0xFF3B82F6); // blue
 
     // Layout text
-    final paragraphStyle = ui.ParagraphStyle(textDirection: ui.TextDirection.ltr, textAlign: TextAlign.center);
-    final textStyle = ui.TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600);
-    final builder = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyle)..addText(name);
+    final paragraphStyle = ui.ParagraphStyle(
+      textDirection: ui.TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    final textStyle = ui.TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    final builder = ui.ParagraphBuilder(paragraphStyle)
+      ..pushStyle(textStyle)
+      ..addText(name);
     final paragraph = builder.build();
     paragraph.layout(const ui.ParagraphConstraints(width: 200));
     final textWidth = paragraph.maxIntrinsicWidth;
@@ -97,7 +158,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     // Draw bubble (white background for text)
     final bubbleLeft = (width - bubbleWidth) / 2;
     final bubbleTop = circleDiameter + pointerHeight;
-    final bubbleRect = RRect.fromRectAndRadius(Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight), const Radius.circular(8));
+    final bubbleRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight),
+      const Radius.circular(8),
+    );
     final bubblePaint = Paint()..color = Colors.white;
     canvas.drawRRect(bubbleRect, bubblePaint);
 
@@ -111,8 +175,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     canvas.drawPath(path, bubblePaint);
 
     // Draw text (black) inside bubble
-    final textStyleBlack = ui.TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600);
-    final tb = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyleBlack)..addText(name);
+    final textStyleBlack = ui.TextStyle(
+      color: Colors.black,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    final tb = ui.ParagraphBuilder(paragraphStyle)
+      ..pushStyle(textStyleBlack)
+      ..addText(name);
     final para = tb.build();
     para.layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
     final textX = (width - para.width) / 2;
@@ -124,27 +194,35 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final pinPaint = Paint()..color = color;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
     // white border
-    final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 4;
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
 
     try {
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), height.toInt());
-      final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+      final bytes =
+          await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache['__me__'] = descriptor;
-  // Compute anchor so the marker coordinate corresponds to the circular pin center
-  // (use circle center relative to total image height). Keep it simple so
-  // anchorY = circleCenterY / height. Device-pixel quirks can be handled later
-  // if necessary via a small runtime calibration routine.
-  final double anchorY = (circleDiameter / 2) / height;
-  _userIconAnchors['__me__'] = Offset(0.5, anchorY);
-  debugPrint('Generated me icon size=${width}x$height anchorY=$anchorY (circleCenter=${circleDiameter/2})');
+      // Compute anchor so the marker coordinate corresponds to the circular pin center
+      // (use circle center relative to total image height). Keep it simple so
+      // anchorY = circleCenterY / height. Device-pixel quirks can be handled later
+      // if necessary via a small runtime calibration routine.
+      final double anchorY = (circleDiameter / 2) / height;
+      _userIconAnchors['__me__'] = Offset(0.5, anchorY);
+      debugPrint(
+        'Generated me icon size=${width}x$height anchorY=$anchorY (circleCenter=${circleDiameter / 2})',
+      );
       return descriptor;
     } catch (e) {
       debugPrint('Failed to generate me marker: $e');
-      final descriptor = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+      final descriptor = BitmapDescriptor.defaultMarkerWithHue(
+        BitmapDescriptor.hueAzure,
+      );
       _userIconCache['__me__'] = descriptor;
       _userIconAnchors['__me__'] = const Offset(0.5, 1.0);
       return descriptor;
@@ -158,9 +236,18 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final text = u.name;
 
     // Text layout to measure width/height
-    final paragraphStyle = ui.ParagraphStyle(textDirection: ui.TextDirection.ltr, textAlign: TextAlign.center);
-    final textStyle = ui.TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600);
-    final builder = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyle)..addText(text);
+    final paragraphStyle = ui.ParagraphStyle(
+      textDirection: ui.TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    final textStyle = ui.TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    final builder = ui.ParagraphBuilder(paragraphStyle)
+      ..pushStyle(textStyle)
+      ..addText(text);
     final paragraph = builder.build();
     // Allow a very wide constraint to measure intrinsic width
     paragraph.layout(const ui.ParagraphConstraints(width: 1000));
@@ -183,8 +270,11 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     // Draw bubble
     final bubbleLeft = (width - bubbleWidth) / 2;
     final bubbleTop = circleDiameter + pointerHeight;
-    final bubbleRect = RRect.fromRectAndRadius(Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight), const Radius.circular(8));
-  final bubblePaint = Paint()..color = Colors.white;
+    final bubbleRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(bubbleLeft, bubbleTop, bubbleWidth, bubbleHeight),
+      const Radius.circular(8),
+    );
+    final bubblePaint = Paint()..color = Colors.white;
     canvas.drawRRect(bubbleRect, bubblePaint);
 
     // Draw pointer triangle connecting bubble to circle
@@ -197,8 +287,14 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     canvas.drawPath(path, bubblePaint);
 
     // Draw text centered in bubble
-  final textStyleBlack = ui.TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.w600);
-  final tb = ui.ParagraphBuilder(paragraphStyle)..pushStyle(textStyleBlack)..addText(text);
+    final textStyleBlack = ui.TextStyle(
+      color: Colors.black,
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    final tb = ui.ParagraphBuilder(paragraphStyle)
+      ..pushStyle(textStyleBlack)
+      ..addText(text);
     final para = tb.build();
     para.layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
     final textX = (width - para.width) / 2;
@@ -210,21 +306,27 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     final pinPaint = Paint()..color = color;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
     // white border
-    final border = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 4;
+    final border = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
 
     try {
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), height.toInt());
-      final bytes = await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+      final bytes =
+          await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
       // fromBytes is deprecated on some versions; suppress the deprecation here.
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
-    _userIconCache[u.id] = descriptor;
-    // Anchor the marker to the circular pin center in the generated image.
-    final double anchorY = (circleDiameter / 2) / height;
-    _userIconAnchors[u.id] = Offset(0.5, anchorY);
-    debugPrint('Generated icon for ${u.id} size=${width}x$height anchorY=$anchorY');
+      _userIconCache[u.id] = descriptor;
+      // Anchor the marker to the circular pin center in the generated image.
+      final double anchorY = (circleDiameter / 2) / height;
+      _userIconAnchors[u.id] = Offset(0.5, anchorY);
+      debugPrint(
+        'Generated icon for ${u.id} size=${width}x$height anchorY=$anchorY',
+      );
       return descriptor;
     } catch (e) {
       debugPrint('Failed to generate marker image for ${u.id}: $e');
@@ -239,12 +341,12 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
   Future<List<dynamic>> _prepareData() async {
     // Ensure maps (on web) is ready, then fetch users and generate icons for relationships.
     await waitForMaps();
-    
+
     // Firebase版のユーザーリポジトリを使用
     final firebaseRepo = FirebaseUserRepository();
     await firebaseRepo.initializeCurrentUser(); // 現在のユーザーをFirestoreに初期化
     final users = await firebaseRepo.fetchAllUsers();
-    
+
     // Pre-generate per-user icons that include the circular pin + a speech-bubble label below.
     final Map<String, BitmapDescriptor> userIcons = {};
     for (final u in users) {
@@ -252,7 +354,10 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
     }
 
     // Always prepare a 'me' icon. If the user is not authenticated, fall back to the name 'Me'.
-    final meName = FirebaseAuth.instance.currentUser?.displayName ?? FirebaseAuth.instance.currentUser?.uid ?? 'Me';
+    final meName =
+        FirebaseAuth.instance.currentUser?.displayName ??
+        FirebaseAuth.instance.currentUser?.uid ??
+        'Me';
     final BitmapDescriptor meIcon = await _markerForMe(meName);
 
     // We no longer read averaged location from Firestore here; LocationService
@@ -262,6 +367,35 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    // _permissionStatus の値に応じて、表示するUIを切り替える
+    switch (_permissionStatus) {
+      case PermissionStatus.checking:
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+      case PermissionStatus.granted:
+        // contextを渡す
+        return buildMapWidget(context);
+
+      case PermissionStatus.denied:
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('地図を表示するには位置情報の許可が必要です。'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Geolocator.openAppSettings(),
+                  child: const Text('設定を開く'),
+                ),
+              ],
+            ),
+          ),
+        );
+    }
+  }
+
+  Widget buildMapWidget(BuildContext context) {
     return legacy.ChangeNotifierProvider(
       create: (_) => MapController(),
       child: FutureBuilder<List<dynamic>>(
@@ -276,11 +410,25 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(height: 12),
-                    const Text('エラーが発生しました。', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'エラーが発生しました。',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    Text('このページでは Google マップが正しく読み込まれませんでした。JavaScript コンソールで技術情報を確認してください。\n(${snap.error})', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+                    Text(
+                      'このページでは Google マップが正しく読み込まれませんでした。JavaScript コンソールで技術情報を確認してください。\n(${snap.error})',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                   ],
                 ),
               ),
@@ -288,25 +436,31 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
           }
 
           if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator(color: AppTheme.blue500));
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.blue500),
+            );
           }
 
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
-          final BitmapDescriptor? meIcon = snap.data!.length > 2 ? snap.data![2] as BitmapDescriptor? : null;
+          final BitmapDescriptor? meIcon = snap.data!.length > 2
+              ? snap.data![2] as BitmapDescriptor?
+              : null;
 
           // Firestoreからリアルタイムでユーザー位置情報を取得
           return StreamBuilder<List<UserEntity>>(
             stream: FirebaseUserRepository().watchAllUsersWithLocations(),
             builder: (context, userSnapshot) {
               final users = userSnapshot.data ?? [];
-              
+
               return ValueListenableBuilder<LatLng?>(
                 valueListenable: LocationService().currentAverage,
                 builder: (context, myAveragedLocation, _) {
                   // 動的にユーザーアイコンを生成（新しいユーザーがログインした場合に対応）
                   final Set<String> newUserIds = users.map((u) => u.id).toSet();
                   final Set<String> existingUserIds = icons.keys.toSet();
-                  final Set<String> missingUserIds = newUserIds.difference(existingUserIds);
+                  final Set<String> missingUserIds = newUserIds.difference(
+                    existingUserIds,
+                  );
 
                   // 新しいユーザーのアイコンを非同期で生成
                   for (final userId in missingUserIds) {
@@ -326,6 +480,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                       ? IntimacyCalculator().watchIntimacyMap(meId)
                       : Stream<Map<String, int?>>.value({});
 
+feature/profile
                   return StreamBuilder<Map<String, int?>>(stream: intimacyStream, builder: (context, intimacySnap) {
                     final intimacyMap = intimacySnap.data ?? {};
 
@@ -401,63 +556,197 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                         ));
                       }
 
-                      // Draw connecting polyline from me -> user based on intimacy or fallback to relationship
+
                       if (myAveragedLocation != null) {
-                        if (intimacyLevel != null) {
-                          if (intimacyLevel >= 2) {
-                            final styleColor = _polylineColorForIntimacyLevel(intimacyLevel);
-                            final width = _polylineWidthForIntimacyLevel(intimacyLevel);
-                            polylines.add(Polyline(
-                              polylineId: PolylineId('conn_${u.id}'),
-                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
-                              color: styleColor,
-                              width: width,
-                              jointType: JointType.round,
-                              startCap: Cap.roundCap,
-                              endCap: Cap.roundCap,
-                            ));
-                          }
-                        } else {
-                          if (u.relationship != Relationship.passingMaybe) {
-                            final styleColor = _polylineColorForRelationship(u.relationship);
-                            final width = _polylineWidthForRelationship(u.relationship);
-                            polylines.add(Polyline(
-                              polylineId: PolylineId('conn_${u.id}'),
-                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
-                              color: styleColor,
-                              width: width,
-                              jointType: JointType.round,
-                              startCap: Cap.roundCap,
-                              endCap: Cap.roundCap,
-                            ));
+                        final Offset meAnchor =
+                            _userIconAnchors['__me__'] ??
+                            const Offset(0.5, 0.34);
+                        markers.add(
+                          Marker(
+                            markerId: const MarkerId('me'),
+                            position: myAveragedLocation,
+                            icon:
+                                meIcon ??
+                                BitmapDescriptor.defaultMarkerWithHue(
+                                  BitmapDescriptor.hueAzure,
+                                ),
+                            anchor: Offset(meAnchor.dx, meAnchor.dy),
+                            infoWindow: InfoWindow.noText,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MyProfileScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+
+                        /* <- ここからコメントアウト
+                        circles.add(
+                          Circle(
+                            circleId: const CircleId('me_circle'),
+                            center: myAveragedLocation,
+                            radius: 50,
+                            fillColor: const Color(0x553B82F6),
+                            strokeColor: const Color(0xFF3B82F6),
+                            strokeWidth: 2,
+                          ),
+                        );
+                        */
+                      }
+
+                      for (final u in users) {
+                        if (u.lat == null || u.lng == null) continue;
+                        final Offset anchor =
+                            _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
+                        // Use the computed anchor if available, otherwise bottom-center.
+                        // Render marker
+                        markers.add(
+                          Marker(
+                            markerId: MarkerId(u.id),
+                            position: LatLng(u.lat!, u.lng!),
+                            icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                            anchor: Offset(anchor.dx, anchor.dy),
+                            infoWindow: InfoWindow.noText,
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => MapProfileModal(user: u),
+                              );
+                            },
+                          ),
+                        );
+
+                        // Render intimacy circle based on server value (level 0..4)
+                        final int? intimacyLevel = intimacyMap[u.id];
+                        /* <- ここからコメントアウト
+                        if (intimacyLevel == 0) {
+                          circles.add(
+                            Circle(
+                              circleId: CircleId('intimacy_circle_${u.id}'),
+                              center: LatLng(u.lat!, u.lng!),
+                              radius: 30,
+                              fillColor: const Color(0x80FFFFFF),
+                              strokeColor: const Color(0x80FFFFFF),
+                              strokeWidth: 1,
+                            ),
+                          );
+                        } else if (intimacyLevel != null && intimacyLevel > 0) {
+                          final Color lvlColor = _colorForIntimacyLevel(
+                            intimacyLevel,
+                          );
+                          final int stroke = _circleStrokeWidthForLevel(
+                            intimacyLevel,
+                          );
+                          circles.add(
+                            Circle(
+                              circleId: CircleId('intimacy_circle_${u.id}'),
+                              center: LatLng(u.lat!, u.lng!),
+                              radius: 40,
+                              fillColor: lvlColor.withOpacity(0.18),
+                              strokeColor: lvlColor,
+                              strokeWidth: stroke,
+                            ),
+                          );
+                        }
+                        */ // <- ここまでコメントアウト
+
+                        // Draw connecting polyline from me -> user based on intimacy or fallback to relationship
+                        if (myAveragedLocation != null) {
+                          if (intimacyLevel != null) {
+                            if (intimacyLevel >= 2) {
+                              final styleColor = _polylineColorForIntimacyLevel(
+                                intimacyLevel,
+                              );
+                              final width = _polylineWidthForIntimacyLevel(
+                                intimacyLevel,
+                              );
+                              polylines.add(
+                                Polyline(
+                                  polylineId: PolylineId('conn_${u.id}'),
+                                  points: [
+                                    myAveragedLocation,
+                                    LatLng(u.lat!, u.lng!),
+                                  ],
+                                  color: styleColor,
+                                  width: width,
+                                  jointType: JointType.round,
+                                  startCap: Cap.roundCap,
+                                  endCap: Cap.roundCap,
+                                ),
+                              );
+                            }
+                          } else {
+                            if (u.relationship != Relationship.passingMaybe) {
+                              final styleColor = _polylineColorForRelationship(
+                                u.relationship,
+                              );
+                              final width = _polylineWidthForRelationship(
+                                u.relationship,
+                              );
+                              polylines.add(
+                                Polyline(
+                                  polylineId: PolylineId('conn_${u.id}'),
+                                  points: [
+                                    myAveragedLocation,
+                                    LatLng(u.lat!, u.lng!),
+                                  ],
+                                  color: styleColor,
+                                  width: width,
+                                  jointType: JointType.round,
+                                  startCap: Cap.roundCap,
+                                  endCap: Cap.roundCap,
+                                ),
+                              );
+                            }
                           }
                         }
                       }
-                    }
 
-                    // Decide initial camera center
-                    LatLng initialCenter;
-                    if (myAveragedLocation != null) {
-                      initialCenter = myAveragedLocation;
-                    } else {
-                      final initialUser = users.firstWhere((u) => u.lat != null && u.lng != null,
-                          orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917));
-                      initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
-                    }
+                      // Decide initial camera center
+                      LatLng initialCenter;
+                      if (myAveragedLocation != null) {
+                        initialCenter = myAveragedLocation;
+                      } else {
+                        final initialUser = users.firstWhere(
+                          (u) => u.lat != null && u.lng != null,
+                          orElse: () => UserEntity(
+                            id: 'you',
+                            name: 'You',
+                            bio: '',
+                            avatarUrl: null,
+                            relationship: Relationship.none,
+                            lat: 35.6895,
+                            lng: 139.6917,
+                          ),
+                        );
+                        initialCenter = LatLng(
+                          initialUser.lat!,
+                          initialUser.lng!,
+                        );
+                      }
 
-                    return GoogleMap(
-                      style: _noLabelsMapStyle,
-                      initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
-                      markers: markers,
-                      circles: circles,
-                      polylines: polylines,
-                      myLocationEnabled: false,
-                      myLocationButtonEnabled: false,
-                      onMapCreated: (controller) {
-                        _mapController = controller;
-                      },
-                    );
-                  });
+                      return GoogleMap(
+                        style: _noLabelsMapStyle,
+                        initialCameraPosition: CameraPosition(
+                          target: initialCenter,
+                          zoom: 14,
+                        ),
+                        markers: markers,
+                        circles: circles,
+                        polylines: polylines,
+                        myLocationEnabled: false,
+                        myLocationButtonEnabled: false,
+                        onMapCreated: (controller) {
+                          _mapController = controller;
+                        },
+                      );
+                    },
+                  );
                 },
               );
             },
@@ -492,7 +781,9 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       case Relationship.acquaintance:
         return const Color(0xFFF97316); // orange
       case Relationship.passingMaybe:
-        return const Color(0xFFF97316); // use orange for passing as demo used same hue
+        return const Color(
+          0xFFF97316,
+        ); // use orange for passing as demo used same hue
       default:
         return const Color(0xFF9CA3AF);
     }
@@ -526,7 +817,9 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         return const Color(0xFFF9A8D4); // passingMaybe-like soft pink
       case 0:
       default:
-        return const Color(0xFFFFFFFF); // white (used semi-transparent for fill)
+        return const Color(
+          0xFFFFFFFF,
+        ); // white (used semi-transparent for fill)
     }
   }
 
@@ -587,6 +880,7 @@ class MapProfileModal extends StatefulWidget {
 class _MapProfileModalState extends State<MapProfileModal> {
   final ChatService _chatService = FirebaseChatService();
 
+
   @override
   void initState() {
     super.initState();
@@ -595,6 +889,49 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
   String get _roomId => widget.user.id;
 
+
+  Future<void> _loadMessages() async {
+    try {
+      final loaded = await _chatService.loadMessages(_roomId);
+      setState(() {
+        _messages.clear();
+        _messages.addAll(
+          loaded.map(
+            (m) => (
+              text: m.text,
+              sent: m.sent,
+              sticker: m.sticker,
+              from: m.from,
+              timestamp: DateTime.now(),
+            ),
+          ),
+        );
+        _isLoading = false;
+      });
+
+      // リアルタイムメッセージリスニング
+      _chatService.onMessage(_roomId).listen((m) {
+        if (mounted) {
+          setState(() {
+            _messages.add((
+              text: m.text,
+              sent: m.sent,
+              sticker: m.sticker,
+              from: m.from,
+              timestamp: DateTime.now(),
+            ));
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading messages: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
       // 1. 通常のDMに送信
@@ -602,7 +939,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
         text: message,
         sent: true,
         sticker: isSticker,
-        from: 'me'
+        from: 'me',
       ));
       
       // 2. Firebaseのlocationsコレクションにも一時的に保存（1時間で消える）
@@ -649,7 +986,9 @@ class _MapProfileModalState extends State<MapProfileModal> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppTheme.scaffoldBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
               ),
               child: Column(
                 children: [
@@ -673,15 +1012,27 @@ class _MapProfileModalState extends State<MapProfileModal> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(widget.user.relationship.label, style: TextStyle(color: AppTheme.blue500)),
+                  Text(
+                    widget.user.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    widget.user.relationship.label,
+                    style: TextStyle(color: AppTheme.blue500),
+                  ),
                   const SizedBox(height: 8),
                   OutlinedButton(
                     onPressed: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: widget.user)),
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              OtherUserProfileScreen(user: widget.user),
+                        ),
                       );
                     },
                     child: const Text('プロフィールを見る'),
@@ -689,50 +1040,38 @@ class _MapProfileModalState extends State<MapProfileModal> {
                 ],
               ),
             ),
+
             
-            // 一時的なメッセージリスト（1時間以内のもののみ表示）
+
+
+            // メッセージリスト
             Expanded(
-              child: SingleChildScrollView(
-                child: StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('locations')
-                      .doc(widget.user.id)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: Text('読み込み中...'));
-                    }
-                    
-                    final data = snapshot.data!.data() as Map<String, dynamic>?;
-                    final text = data?['text'] as String?;
-                    final textTimeStr = data?['text_time'] as String?;
-                    final textFrom = data?['text_from'] as String?;
-                    
-                    // 1時間以内のメッセージのみ表示、1時間経過したら自動削除
-                    if (text != null && text.isNotEmpty && textTimeStr != null) {
-                      final textTime = DateTime.parse(textTimeStr);
-                      final now = DateTime.now();
-                      final diff = now.difference(textTime);
-                      
-                      // 1時間経過していたら削除
-                      if (diff.inHours >= 1) {
-                        _clearExpiredMessage();
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              'ここでのメッセージは直接送信されます\n過去の履歴はチャットタブから確認できます',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      if (diff.inHours < 1) {
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'まだメッセージがありません\n下から送信してみてください',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: ctrl,
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final isMe = message.sent;
                         return Container(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+
                             children: [
                               const Text(
                                 '最近のメッセージ (1時間以内)',
@@ -740,10 +1079,21 @@ class _MapProfileModalState extends State<MapProfileModal> {
                               ),
                               const SizedBox(height: 8),
                               Container(
-                                padding: const EdgeInsets.all(12),
+
+                                constraints: BoxConstraints(
+                                  maxWidth:
+                                      MediaQuery.of(context).size.width * 0.7,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: Colors.blue[50],
-                                  borderRadius: BorderRadius.circular(8),
+                                  color: isMe
+                                      ? AppTheme.blue500
+                                      : Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(16),
+
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,7 +1142,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
                 ),
               ),
             ),
-            
+
             // 親密度ベースのメッセージ入力
             Container(
               padding: const EdgeInsets.all(16),
