@@ -46,7 +46,11 @@ class _MapScreenState extends State<MapScreen>
   Set<Marker> _visibleMarkers = {}; // 地図に実際に表示するマーカー
   double _currentZoom = 14.0; // 現在のズームレベル
 
+  Map<String, int?> _intimacyMap = {};
+  Set<Polyline> _visiblePolylines = {};
+
   late Future<List<dynamic>> _prepareDataFuture;
+  final FirebaseUserRepository _userRepository = FirebaseUserRepository();
 
   // Map style that hides place names / POI / transit / administrative labels
   static const String _noLabelsMapStyle = '''
@@ -74,16 +78,14 @@ class _MapScreenState extends State<MapScreen>
   Future<void> _updateVisibleMarkers(
     Map<String, BitmapDescriptor> icons,
   ) async {
-    // ▼▼▼ 1. 関数を「async」にする ▼▼▼
-
     final double threshold = _getClusteringThreshold(_currentZoom);
     final Set<Marker> newMarkers = {};
-
-    // ▼▼▼ 2. 非同期処理を入れるためのリストを準備 ▼▼▼
     final List<Future<Marker>> markerFutures = [];
+    final Set<Polyline> newPolylines = {};
+    final myLocation = LocationService().currentAverage.value;
 
     if (threshold <= 0) {
-      // クラスタリングしない場合の処理は変更なし
+      // クラスタリングしない場合
       for (final user in _allUsers) {
         if (user.lat != null && user.lng != null) {
           newMarkers.add(
@@ -102,11 +104,25 @@ class _MapScreenState extends State<MapScreen>
               },
             ),
           );
+          if (myLocation != null) {
+            final intimacyLevel = _intimacyMap[user.id];
+            if (intimacyLevel != null && intimacyLevel >= 2) {
+              newPolylines.add(
+                Polyline(
+                  polylineId: PolylineId('conn_${user.id}'),
+                  points: [myLocation, LatLng(user.lat!, user.lng!)],
+                  color: _polylineColorForIntimacyLevel(intimacyLevel),
+                  width: _polylineWidthForIntimacyLevel(intimacyLevel),
+                ),
+              );
+            }
+          }
         }
       }
       if (mounted) {
         setState(() {
           _visibleMarkers = newMarkers;
+          _visiblePolylines = newPolylines;
         });
       }
       return;
@@ -115,7 +131,6 @@ class _MapScreenState extends State<MapScreen>
     List<UserEntity> unprocessedUsers = List.from(
       _allUsers.where((u) => u.lat != null && u.lng != null),
     );
-
     while (unprocessedUsers.isNotEmpty) {
       final baseUser = unprocessedUsers.first;
       unprocessedUsers.removeAt(0);
@@ -133,12 +148,9 @@ class _MapScreenState extends State<MapScreen>
         }
         return false;
       });
-
       if (cluster.length > 1) {
-        // ▼▼▼ 3. クラスターマーカーの生成をFutureとしてリストに追加 ▼▼▼
         markerFutures.add(_createClusterMarker(cluster));
       } else {
-        // 1人の場合は通常のマーカー（同期処理なので直接追加）
         newMarkers.add(
           Marker(
             markerId: MarkerId(baseUser.id),
@@ -155,23 +167,33 @@ class _MapScreenState extends State<MapScreen>
             },
           ),
         );
+        if (myLocation != null) {
+          final intimacyLevel = _intimacyMap[baseUser.id];
+          if (intimacyLevel != null && intimacyLevel >= 2) {
+            newPolylines.add(
+              Polyline(
+                polylineId: PolylineId('conn_${baseUser.id}'),
+                points: [myLocation, LatLng(baseUser.lat!, baseUser.lng!)],
+                color: _polylineColorForIntimacyLevel(intimacyLevel),
+                width: _polylineWidthForIntimacyLevel(intimacyLevel),
+              ),
+            );
+          }
+        }
       }
     }
 
-    // ▼▼▼ 4. 全ての非同期処理（クラスターアイコン生成）が終わるのをここで待つ ▼▼▼
     final clusterMarkers = await Future.wait(markerFutures);
     newMarkers.addAll(clusterMarkers);
 
-    // ▼▼▼ 5. 全てのマーカーが揃ってから、最後に一度だけUIを更新する ▼▼▼
     if (mounted) {
       setState(() {
         _visibleMarkers = newMarkers;
+        _visiblePolylines = newPolylines;
       });
     }
   }
 
-  // クラスターマーカーを非同期で生成するための、新しいヘルパー関数
-  // （このメソッドも _MapScreenState の中にコピーしてください）
   Future<Marker> _createClusterMarker(List<UserEntity> cluster) async {
     final double avgLat =
         cluster.map((u) => u.lat!).reduce((a, b) => a + b) / cluster.length;
@@ -198,20 +220,16 @@ class _MapScreenState extends State<MapScreen>
     final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
     final Canvas canvas = Canvas(pictureRecorder);
     final Paint paint = Paint()..color = Colors.orange;
-    const double size = 40.0;
+    const double size = 100.0;
 
     canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
 
-    // 人数の桁数に応じてフォントサイズを決定
     double fontSize;
     if (count < 10) {
-      // 1桁の場合
       fontSize = 40.0;
     } else if (count < 100) {
-      // 2桁の場合
       fontSize = 32.0;
     } else {
-      // 3桁以上の場合
       fontSize = 24.0;
     }
 
@@ -219,18 +237,7 @@ class _MapScreenState extends State<MapScreen>
         ui.ParagraphBuilder(
             ui.ParagraphStyle(
               textAlign: TextAlign.center,
-              fontSize: fontSize, // ← 先ほど決定した変数をここで使用
-              fontWeight: FontWeight.bold,
-            ),
-          )
-          ..pushStyle(ui.TextStyle(color: Colors.white))
-          ..addText(count.toString());
-
-    final ui.ParagraphBuilder textBuilder =
-        ui.ParagraphBuilder(
-            ui.ParagraphStyle(
-              textAlign: TextAlign.center,
-              fontSize: 40.0,
+              fontSize: fontSize,
               fontWeight: FontWeight.bold,
             ),
           )
@@ -239,7 +246,6 @@ class _MapScreenState extends State<MapScreen>
 
     final ui.Paragraph paragraph = builder.build();
     paragraph.layout(const ui.ParagraphConstraints(width: size));
-
     canvas.drawParagraph(paragraph, Offset(0, size / 2 - paragraph.height / 2));
 
     final ui.Image img = await pictureRecorder.endRecording().toImage(
@@ -250,6 +256,7 @@ class _MapScreenState extends State<MapScreen>
     if (data == null) {
       return BitmapDescriptor.defaultMarker;
     }
+    // ignore: deprecated_member_use
     return BitmapDescriptor.fromBytes(data.buffer.asUint8List());
   }
 
@@ -262,17 +269,30 @@ class _MapScreenState extends State<MapScreen>
     )..forward();
     _prepareDataFuture = _prepareData();
     _checkPermissionAndInitialize();
+
+    final meId = FirebaseAuth.instance.currentUser?.uid;
+    if (meId != null) {
+      IntimacyCalculator().watchIntimacyMap(meId).listen((intimacyMap) {
+        if (mounted) {
+          setState(() {
+            _intimacyMap = intimacyMap;
+          });
+          _prepareDataFuture.then((data) {
+            final icons = data[1] as Map<String, BitmapDescriptor>;
+            _updateVisibleMarkers(icons);
+          });
+        }
+      });
+    }
   }
 
   Future<void> _checkPermissionAndInitialize() async {
-    // ...許可チェックのロジックは変更なし...
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // サービスが無効な場合は、UIを「拒否」状態にして、この関数を終了する
       if (mounted) {
         setState(() => _permissionStatus = PermissionStatus.denied);
       }
-      return; // returnで処理を中断するのが重要
+      return;
     }
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -282,22 +302,13 @@ class _MapScreenState extends State<MapScreen>
     if (mounted) {
       if (permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always) {
-        // ★★★ ここからが変更箇所です ★★★
-
-        // 1. まず位置情報サービスを開始して、位置の取得を試みさせる
         LocationService().startLocationUpdates();
-
-        // 2. 位置情報が取得できるまで1秒ごとにループして待つ
         while (LocationService().currentAverage.value == null && mounted) {
-          // mountedフラグをチェックして、ウィジェットが存在しない場合はループを抜ける
           await Future.delayed(const Duration(seconds: 1));
         }
-
-        // 3. ループを抜けたら（位置が取得できたら）、状態を「許可済み」に更新
         if (mounted) {
           setState(() => _permissionStatus = PermissionStatus.granted);
         }
-        // ★★★ ここまでが変更箇所です ★★★
       } else {
         setState(() => _permissionStatus = PermissionStatus.denied);
       }
@@ -311,19 +322,12 @@ class _MapScreenState extends State<MapScreen>
     super.dispose();
   }
 
-  // ...existing code...
-
   final Map<String, BitmapDescriptor> _userIconCache = {};
-  // Store per-icon anchor so the marker's LatLng corresponds to the circular pin center.
   final Map<String, Offset> _userIconAnchors = {};
 
   Future<BitmapDescriptor> _markerForMe(String name) async {
-    // Create a blue circular pin with the account name shown under it.
     if (_userIconCache.containsKey('__me__')) return _userIconCache['__me__']!;
-
-    final color = const Color(0xFF3B82F6); // blue
-
-    // Layout text
+    final color = const Color(0xFF3B82F6);
     final paragraphStyle = ui.ParagraphStyle(
       textDirection: ui.TextDirection.ltr,
       textAlign: TextAlign.center,
@@ -336,25 +340,20 @@ class _MapScreenState extends State<MapScreen>
     final builder = ui.ParagraphBuilder(paragraphStyle)
       ..pushStyle(textStyle)
       ..addText(name);
-    final paragraph = builder.build();
-    paragraph.layout(const ui.ParagraphConstraints(width: 200));
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: 200));
     final textWidth = paragraph.maxIntrinsicWidth;
     final textHeight = paragraph.height;
-
     const circleDiameter = 44.0;
     const pointerHeight = 8.0;
     const bubblePadH = 10.0;
     const bubblePadV = 6.0;
-
     final bubbleWidth = textWidth + bubblePadH * 2;
     final bubbleHeight = textHeight + bubblePadV * 2;
     final width = math.max(circleDiameter, bubbleWidth);
     final height = circleDiameter + pointerHeight + bubbleHeight;
-
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
-
-    // Draw bubble (white background for text)
     final bubbleLeft = (width - bubbleWidth) / 2;
     final bubbleTop = circleDiameter + pointerHeight;
     final bubbleRect = RRect.fromRectAndRadius(
@@ -363,17 +362,13 @@ class _MapScreenState extends State<MapScreen>
     );
     final bubblePaint = Paint()..color = Colors.white;
     canvas.drawRRect(bubbleRect, bubblePaint);
-
-    // Pointer triangle
     final tipCenterX = width / 2;
-    final path = Path();
-    path.moveTo(tipCenterX - 8, bubbleTop);
-    path.lineTo(tipCenterX + 8, bubbleTop);
-    path.lineTo(tipCenterX, bubbleTop - pointerHeight);
-    path.close();
+    final path = Path()
+      ..moveTo(tipCenterX - 8, bubbleTop)
+      ..lineTo(tipCenterX + 8, bubbleTop)
+      ..lineTo(tipCenterX, bubbleTop - pointerHeight)
+      ..close();
     canvas.drawPath(path, bubblePaint);
-
-    // Draw text (black) inside bubble
     final textStyleBlack = ui.TextStyle(
       color: Colors.black,
       fontSize: 14,
@@ -382,35 +377,31 @@ class _MapScreenState extends State<MapScreen>
     final tb = ui.ParagraphBuilder(paragraphStyle)
       ..pushStyle(textStyleBlack)
       ..addText(name);
-    final para = tb.build();
-    para.layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
+    final para = tb.build()
+      ..layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
     final textX = (width - para.width) / 2;
     final textY = bubbleTop + bubblePadV;
     canvas.drawParagraph(para, Offset(textX, textY));
-
-    // Draw blue circular pin
     final center = Offset(width / 2, circleDiameter / 2);
     final pinPaint = Paint()..color = color;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
-    // white border
     final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
-
     try {
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), height.toInt());
-      final bytes =
-          await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
+      final ByteData? bytes = await img.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (bytes == null) {
+        throw Exception('Generated byte data for me was null.');
+      }
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache['__me__'] = descriptor;
-      // Compute anchor so the marker coordinate corresponds to the circular pin center
-      // (use circle center relative to total image height). Keep it simple so
-      // anchorY = circleCenterY / height. Device-pixel quirks can be handled later
-      // if necessary via a small runtime calibration routine.
       final double anchorY = (circleDiameter / 2) / height;
       _userIconAnchors['__me__'] = Offset(0.5, anchorY);
       debugPrint(
@@ -430,11 +421,8 @@ class _MapScreenState extends State<MapScreen>
 
   Future<BitmapDescriptor> _markerForUser(UserEntity u) async {
     if (_userIconCache.containsKey(u.id)) return _userIconCache[u.id]!;
-
     final color = _colorForRelationship(u.relationship);
     final text = u.name;
-
-    // Text layout to measure width/height
     final paragraphStyle = ui.ParagraphStyle(
       textDirection: ui.TextDirection.ltr,
       textAlign: TextAlign.center,
@@ -447,26 +435,20 @@ class _MapScreenState extends State<MapScreen>
     final builder = ui.ParagraphBuilder(paragraphStyle)
       ..pushStyle(textStyle)
       ..addText(text);
-    final paragraph = builder.build();
-    // Allow a very wide constraint to measure intrinsic width
-    paragraph.layout(const ui.ParagraphConstraints(width: 1000));
+    final paragraph = builder.build()
+      ..layout(const ui.ParagraphConstraints(width: 1000));
     final textWidth = paragraph.maxIntrinsicWidth;
     final textHeight = paragraph.height;
-
     const circleDiameter = 44.0;
     const pointerHeight = 8.0;
     const bubblePadH = 10.0;
     const bubblePadV = 6.0;
-
     final bubbleWidth = textWidth + bubblePadH * 2;
     final bubbleHeight = textHeight + bubblePadV * 2;
     final width = math.max(circleDiameter, bubbleWidth);
     final height = circleDiameter + pointerHeight + bubbleHeight;
-
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, width, height));
-
-    // Draw bubble
     final bubbleLeft = (width - bubbleWidth) / 2;
     final bubbleTop = circleDiameter + pointerHeight;
     final bubbleRect = RRect.fromRectAndRadius(
@@ -475,17 +457,13 @@ class _MapScreenState extends State<MapScreen>
     );
     final bubblePaint = Paint()..color = Colors.white;
     canvas.drawRRect(bubbleRect, bubblePaint);
-
-    // Draw pointer triangle connecting bubble to circle
     final tipCenterX = width / 2;
-    final path = Path();
-    path.moveTo(tipCenterX - 8, bubbleTop);
-    path.lineTo(tipCenterX + 8, bubbleTop);
-    path.lineTo(tipCenterX, bubbleTop - pointerHeight);
-    path.close();
+    final path = Path()
+      ..moveTo(tipCenterX - 8, bubbleTop)
+      ..lineTo(tipCenterX + 8, bubbleTop)
+      ..lineTo(tipCenterX, bubbleTop - pointerHeight)
+      ..close();
     canvas.drawPath(path, bubblePaint);
-
-    // Draw text centered in bubble
     final textStyleBlack = ui.TextStyle(
       color: Colors.black,
       fontSize: 14,
@@ -494,33 +472,31 @@ class _MapScreenState extends State<MapScreen>
     final tb = ui.ParagraphBuilder(paragraphStyle)
       ..pushStyle(textStyleBlack)
       ..addText(text);
-    final para = tb.build();
-    para.layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
+    final para = tb.build()
+      ..layout(ui.ParagraphConstraints(width: bubbleWidth - bubblePadH * 2));
     final textX = (width - para.width) / 2;
     final textY = bubbleTop + bubblePadV;
     canvas.drawParagraph(para, Offset(textX, textY));
-
-    // Draw circular pin above the bubble
     final center = Offset(width / 2, circleDiameter / 2);
     final pinPaint = Paint()..color = color;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, pinPaint);
-    // white border
     final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4;
     canvas.drawCircle(center, (circleDiameter / 2) - 4, border);
-
     try {
       final picture = recorder.endRecording();
       final img = await picture.toImage(width.toInt(), height.toInt());
-      final bytes =
-          await img.toByteData(format: ui.ImageByteFormat.png) as ByteData;
-      // fromBytes is deprecated on some versions; suppress the deprecation here.
+      final ByteData? bytes = await img.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (bytes == null) {
+        throw Exception('Generated byte data for user ${u.id} was null.');
+      }
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
       _userIconCache[u.id] = descriptor;
-      // Anchor the marker to the circular pin center in the generated image.
       final double anchorY = (circleDiameter / 2) / height;
       _userIconAnchors[u.id] = Offset(0.5, anchorY);
       debugPrint(
@@ -529,7 +505,6 @@ class _MapScreenState extends State<MapScreen>
       return descriptor;
     } catch (e) {
       debugPrint('Failed to generate marker image for ${u.id}: $e');
-      // Fallback to default marker
       final descriptor = BitmapDescriptor.defaultMarker;
       _userIconCache[u.id] = descriptor;
       _userIconAnchors[u.id] = const Offset(0.5, 1.0);
@@ -538,43 +513,29 @@ class _MapScreenState extends State<MapScreen>
   }
 
   Future<List<dynamic>> _prepareData() async {
-    // Ensure maps (on web) is ready, then fetch users and generate icons for relationships.
     await waitForMaps();
-
-    // Firebase版のユーザーリポジトリを使用
     final firebaseRepo = FirebaseUserRepository();
-    await firebaseRepo.initializeCurrentUser(); // 現在のユーザーをFirestoreに初期化
+    await firebaseRepo.initializeCurrentUser();
     final users = await firebaseRepo.fetchAllUsers();
-
-    // Pre-generate per-user icons that include the circular pin + a speech-bubble label below.
     final Map<String, BitmapDescriptor> userIcons = {};
     for (final u in users) {
       userIcons[u.id] = await _markerForUser(u);
     }
-
-    // Always prepare a 'me' icon. If the user is not authenticated, fall back to the name 'Me'.
     final meName =
         FirebaseAuth.instance.currentUser?.displayName ??
         FirebaseAuth.instance.currentUser?.uid ??
         'Me';
     final BitmapDescriptor meIcon = await _markerForMe(meName);
-
-    // We no longer read averaged location from Firestore here; LocationService
-    // maintains the latest averaged location locally (ValueNotifier).
     return [users, userIcons, meIcon];
   }
 
   @override
   Widget build(BuildContext context) {
-    // _permissionStatus の値に応じて、表示するUIを切り替える
     switch (_permissionStatus) {
       case PermissionStatus.checking:
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
       case PermissionStatus.granted:
-        // contextを渡す
         return buildMapWidget(context);
-
       case PermissionStatus.denied:
         return Scaffold(
           body: Center(
@@ -594,10 +555,6 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  // map_screen.dart
-
-  // map_screen.dart
-
   Widget buildMapWidget(BuildContext context) {
     return legacy.ChangeNotifierProvider(
       create: (_) => MapController(),
@@ -610,26 +567,20 @@ class _MapScreenState extends State<MapScreen>
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-
           final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
           final BitmapDescriptor? meIcon = snap.data![2] as BitmapDescriptor?;
-
           return StreamBuilder<List<UserEntity>>(
-            stream: FirebaseUserRepository().watchAllUsersWithLocations(),
+            stream: _userRepository.watchAllUsersWithLocations(),
             builder: (context, userSnapshot) {
-              // Streamから最新のユーザーリストを受け取り、_allUsersを更新
               if (userSnapshot.hasData) {
                 _allUsers = userSnapshot.data!;
-                // 最初のマーカー計算をトリガー
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) _updateVisibleMarkers(icons);
                 });
               }
-
               return ValueListenableBuilder<LatLng?>(
                 valueListenable: LocationService().currentAverage,
                 builder: (context, myAveragedLocation, _) {
-                  // 自分のマーカーだけをここで生成
                   final myMarkers = <Marker>{};
                   if (myAveragedLocation != null && meIcon != null) {
                     myMarkers.add(
@@ -651,8 +602,6 @@ class _MapScreenState extends State<MapScreen>
                       ),
                     );
                   }
-
-                  // Decide initial camera center
                   LatLng initialCenter;
                   if (myAveragedLocation != null) {
                     initialCenter = myAveragedLocation;
@@ -662,27 +611,24 @@ class _MapScreenState extends State<MapScreen>
                       _allUsers.first.lng!,
                     );
                   } else {
-                    initialCenter = const LatLng(35.6895, 139.6917); // Fallback
+                    initialCenter = const LatLng(35.6895, 139.6917);
                   }
-
                   return GoogleMap(
                     style: _noLabelsMapStyle,
                     initialCameraPosition: CameraPosition(
                       target: initialCenter,
                       zoom: _currentZoom,
                     ),
-                    markers: _visibleMarkers.union(
-                      myMarkers,
-                    ), // 計算済みのマーカーと自分のマーカーを表示
-                    circles: const {}, // 円は使いません
-                    polylines: const {}, // ポリラインも一旦無効化
+                    markers: _visibleMarkers.union(myMarkers),
+                    circles: const {},
+                    polylines: _visiblePolylines,
                     myLocationEnabled: false,
                     myLocationButtonEnabled: false,
                     onMapCreated: (controller) {
                       _mapController = controller;
+                      _mapController?.setMapStyle(_noLabelsMapStyle);
                     },
                     onCameraIdle: () async {
-                      // 地図の操作が終わったら、ズームレベルを更新してマーカーを再計算
                       if (_mapController != null) {
                         _currentZoom = await _mapController!.getZoomLevel();
                         _updateVisibleMarkers(icons);
@@ -713,19 +659,16 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  // Polyline styling based on relationship. Colors taken from reference/Demo.html
   Color _polylineColorForRelationship(Relationship r) {
     switch (r) {
       case Relationship.close:
-        return const Color(0xFF4F46E5); // indigo (thicker in demo)
+        return const Color(0xFF4F46E5);
       case Relationship.friend:
-        return const Color(0xFF22C55E); // green
+        return const Color(0xFF22C55E);
       case Relationship.acquaintance:
-        return const Color(0xFFF97316); // orange
+        return const Color(0xFFF97316);
       case Relationship.passingMaybe:
-        return const Color(
-          0xFFF97316,
-        ); // use orange for passing as demo used same hue
+        return const Color(0xFFF97316);
       default:
         return const Color(0xFF9CA3AF);
     }
@@ -734,34 +677,31 @@ class _MapScreenState extends State<MapScreen>
   int _polylineWidthForRelationship(Relationship r) {
     switch (r) {
       case Relationship.close:
-        return 5; // thick
+        return 5;
       case Relationship.friend:
-        return 3; // medium
+        return 3;
       case Relationship.acquaintance:
-        return 1; // thin
+        return 1;
       case Relationship.passingMaybe:
-        return 1; // thin / subtle
+        return 1;
       default:
         return 2;
     }
   }
 
-  // Intimacy level -> color mapping. Levels: 0..4
   Color _colorForIntimacyLevel(int level) {
     switch (level) {
       case 4:
-        return const Color(0xFF4F46E5); // close - indigo
+        return const Color(0xFF4F46E5);
       case 3:
-        return const Color(0xFF22C55E); // friend - green
+        return const Color(0xFF22C55E);
       case 2:
-        return const Color(0xFFF97316); // acquaintance - orange
+        return const Color(0xFFF97316);
       case 1:
-        return const Color(0xFFF9A8D4); // passingMaybe-like soft pink
+        return const Color(0xFFF9A8D4);
       case 0:
       default:
-        return const Color(
-          0xFFFFFFFF,
-        ); // white (used semi-transparent for fill)
+        return const Color(0xFFFFFFFF);
     }
   }
 
@@ -780,7 +720,6 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  // Polyline color/width derived from intimacy level
   Color _polylineColorForIntimacyLevel(int level) {
     switch (level) {
       case 4:
@@ -808,13 +747,9 @@ class _MapScreenState extends State<MapScreen>
   }
 }
 
-// (duplicate modal removed)
-
-// Modal for map marker profile and DM input
 class MapProfileModal extends StatefulWidget {
   final UserEntity user;
   const MapProfileModal({super.key, required this.user});
-
   @override
   State<MapProfileModal> createState() => _MapProfileModalState();
 }
@@ -826,15 +761,12 @@ class _MapProfileModalState extends State<MapProfileModal> {
   >
   _messages = [];
   bool _isLoading = false;
-
   @override
   void initState() {
     super.initState();
-    // Mapプロフィールからは過去のメッセージを読み込まない
   }
 
   String get _roomId => widget.user.id;
-
   Future<void> _loadMessages() async {
     try {
       final loaded = await _chatService.loadMessages(_roomId);
@@ -853,8 +785,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
         );
         _isLoading = false;
       });
-
-      // リアルタイムメッセージリスニング
       _chatService.onMessage(_roomId).listen((m) {
         if (mounted) {
           setState(() {
@@ -878,15 +808,12 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
-      // 1. 通常のDMに送信
       await _chatService.sendMessage(_roomId, (
         text: message,
         sent: true,
         sticker: isSticker,
         from: 'me',
       ));
-
-      // 2. Firebaseのlocationsコレクションにも一時的に保存（1時間で消える）
       await _saveTemporaryMapMessage(message);
     } catch (e) {
       debugPrint('Error sending message: $e');
@@ -897,18 +824,15 @@ class _MapProfileModalState extends State<MapProfileModal> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-
       final now = DateTime.now();
-      // 対象ユーザーのlocationsドキュメントに送信者の情報とともに保存
       await FirebaseFirestore.instance
           .collection('locations')
           .doc(widget.user.id)
           .update({
             'text': message,
             'text_time': now.toIso8601String(),
-            'text_from': user.uid, // 送信者のUID
+            'text_from': user.uid,
           });
-
       debugPrint('一時的なメッセージを${widget.user.id}のlocationsに保存: $message');
     } catch (e) {
       debugPrint('一時的なメッセージの保存エラー: $e');
@@ -928,7 +852,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
         ),
         child: Column(
           children: [
-            // ヘッダー部分
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -939,7 +862,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
               child: Column(
                 children: [
-                  // 閉じるボタンを右上に配置
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -987,8 +909,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
                 ],
               ),
             ),
-
-            // メッセージリスト
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -1075,8 +995,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
                             },
                           )),
             ),
-
-            // 親密度ベースのメッセージ入力
             Container(
               padding: const EdgeInsets.all(16),
               constraints: const BoxConstraints(maxHeight: 200),
@@ -1086,9 +1004,8 @@ class _MapProfileModalState extends State<MapProfileModal> {
                   targetUserName: widget.user.name,
                   onSendMessage: (message, isSticker) async {
                     await _sendMessage(message, isSticker);
-                    // 送信後、実際のDMに遷移
                     if (mounted) {
-                      Navigator.pop(context); // モーダルを閉じる
+                      Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
