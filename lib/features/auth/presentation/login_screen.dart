@@ -124,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 					padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
 					child: ConstrainedBox(
 						constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
-						child: IntrinsicHeight(child: cardBody()),
+						child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: cardBody()),
 					),
 				),
 			),
