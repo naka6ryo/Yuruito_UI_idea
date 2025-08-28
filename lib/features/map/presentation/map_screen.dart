@@ -395,6 +395,8 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
+  // map_screen.dart
+
   Widget buildMapWidget(BuildContext context) {
     return legacy.ChangeNotifierProvider(
       create: (_) => MapController(),
@@ -483,25 +485,40 @@ class _MapScreenState extends State<MapScreen>
                   return StreamBuilder<Map<String, int?>>(
                     stream: intimacyStream,
                     builder: (context, intimacySnap) {
-                    final intimacyMap = intimacySnap.data ?? {};
+                      final intimacyMap = intimacySnap.data ?? {};
 
-                    final markers = <Marker>{};
-                    final Set<Circle> circles = {};
-                    final Set<Polyline> polylines = {};
+                      final markers = <Marker>{};
+                      final Set<Circle> circles = {};
+                      final Set<Polyline> polylines = {};
 
-                    if (myAveragedLocation != null) {
-                      final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
-                      markers.add(Marker(
-                        markerId: const MarkerId('me'),
-                        position: myAveragedLocation,
-                        icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                        anchor: Offset(meAnchor.dx, meAnchor.dy),
-                        infoWindow: InfoWindow.noText,
-                        onTap: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
-                        },
-                      ));
+                      if (myAveragedLocation != null) {
+                        final Offset meAnchor =
+                            _userIconAnchors['__me__'] ??
+                            const Offset(0.5, 0.34);
+                        markers.add(
+                          Marker(
+                            markerId: const MarkerId('me'),
+                            position: myAveragedLocation,
+                            icon:
+                                meIcon ??
+                                BitmapDescriptor.defaultMarkerWithHue(
+                                  BitmapDescriptor.hueAzure,
+                                ),
+                            anchor: Offset(meAnchor.dx, meAnchor.dy),
+                            infoWindow: InfoWindow.noText,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MyProfileScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        );
 
+                        // ▼▼▼ 修正箇所①：自分の円をコメントアウト ▼▼▼
+                        /*
                       circles.add(Circle(
                         circleId: const CircleId('me_circle'),
                         center: myAveragedLocation,
@@ -510,27 +527,33 @@ class _MapScreenState extends State<MapScreen>
                         strokeColor: const Color(0xFF3B82F6),
                         strokeWidth: 2,
                       ));
-                    }
+                      */
+                      }
 
-                    for (final u in users) {
-                      if (u.lat == null || u.lng == null) continue;
-                      final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-                      markers.add(Marker(
-                        markerId: MarkerId(u.id),
-                        position: LatLng(u.lat!, u.lng!),
-                        icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-                        anchor: Offset(anchor.dx, anchor.dy),
-                        infoWindow: InfoWindow.noText,
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => MapProfileModal(user: u),
-                          );
-                        },
-                      ));
+                      for (final u in users) {
+                        if (u.lat == null || u.lng == null) continue;
+                        final Offset anchor =
+                            _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
+                        markers.add(
+                          Marker(
+                            markerId: MarkerId(u.id),
+                            position: LatLng(u.lat!, u.lng!),
+                            icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                            anchor: Offset(anchor.dx, anchor.dy),
+                            infoWindow: InfoWindow.noText,
+                            onTap: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => MapProfileModal(user: u),
+                              );
+                            },
+                          ),
+                        );
 
+                        // ▼▼▼ 修正箇所②：他のユーザーの円をコメントアウト ▼▼▼
+                        /*
                       final int? intimacyLevel = intimacyMap[u.id];
                       if (intimacyLevel == 0) {
                         circles.add(Circle(
@@ -553,57 +576,61 @@ class _MapScreenState extends State<MapScreen>
                           strokeWidth: stroke,
                         ));
                       }
+                      */
 
-                      if (myAveragedLocation != null) {
-                        if (intimacyLevel != null) {
-                          if (intimacyLevel >= 2) {
-                            final styleColor = _polylineColorForIntimacyLevel(
-                              intimacyLevel,
-                            );
-                            final width = _polylineWidthForIntimacyLevel(
-                              intimacyLevel,
-                            );
-                            polylines.add(
-                              Polyline(
-                                polylineId: PolylineId('conn_${u.id}'),
-                                points: [
-                                  myAveragedLocation,
-                                  LatLng(u.lat!, u.lng!),
-                                ],
-                                color: styleColor,
-                                width: width,
-                                jointType: JointType.round,
-                                startCap: Cap.roundCap,
-                                endCap: Cap.roundCap,
-                              ),
-                            );
-                          }
-                        } else {
-                          if (u.relationship != Relationship.passingMaybe) {
-                            final styleColor = _polylineColorForRelationship(
-                              u.relationship,
-                            );
-                            final width = _polylineWidthForRelationship(
-                              u.relationship,
-                            );
-                            polylines.add(
-                              Polyline(
-                                polylineId: PolylineId('conn_${u.id}'),
-                                points: [
-                                  myAveragedLocation,
-                                  LatLng(u.lat!, u.lng!),
-                                ],
-                                color: styleColor,
-                                width: width,
-                                jointType: JointType.round,
-                                startCap: Cap.roundCap,
-                                endCap: Cap.roundCap,
-                              ),
-                            );
+                        // ポリラインのロジックは残す
+                        final int? intimacyLevel =
+                            intimacyMap[u.id]; // この行はポリラインでも使うため残す
+                        if (myAveragedLocation != null) {
+                          if (intimacyLevel != null) {
+                            if (intimacyLevel >= 2) {
+                              final styleColor = _polylineColorForIntimacyLevel(
+                                intimacyLevel,
+                              );
+                              final width = _polylineWidthForIntimacyLevel(
+                                intimacyLevel,
+                              );
+                              polylines.add(
+                                Polyline(
+                                  polylineId: PolylineId('conn_${u.id}'),
+                                  points: [
+                                    myAveragedLocation,
+                                    LatLng(u.lat!, u.lng!),
+                                  ],
+                                  color: styleColor,
+                                  width: width,
+                                  jointType: JointType.round,
+                                  startCap: Cap.roundCap,
+                                  endCap: Cap.roundCap,
+                                ),
+                              );
+                            }
+                          } else {
+                            if (u.relationship != Relationship.passingMaybe) {
+                              final styleColor = _polylineColorForRelationship(
+                                u.relationship,
+                              );
+                              final width = _polylineWidthForRelationship(
+                                u.relationship,
+                              );
+                              polylines.add(
+                                Polyline(
+                                  polylineId: PolylineId('conn_${u.id}'),
+                                  points: [
+                                    myAveragedLocation,
+                                    LatLng(u.lat!, u.lng!),
+                                  ],
+                                  color: styleColor,
+                                  width: width,
+                                  jointType: JointType.round,
+                                  startCap: Cap.roundCap,
+                                  endCap: Cap.roundCap,
+                                ),
+                              );
+                            }
                           }
                         }
                       }
-                    }
 
                       // Decide initial camera center
                       LatLng initialCenter;
@@ -777,15 +804,11 @@ class MapProfileModal extends StatefulWidget {
 
 class _MapProfileModalState extends State<MapProfileModal> {
   final ChatService _chatService = FirebaseChatService();
-  final List<({
-    String text,
-    bool sent,
-    bool sticker,
-    String from,
-    DateTime timestamp,
-  })> _messages = [];
+  final List<
+    ({String text, bool sent, bool sticker, String from, DateTime timestamp})
+  >
+  _messages = [];
   bool _isLoading = false;
-
 
   @override
   void initState() {
@@ -794,7 +817,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
   }
 
   String get _roomId => widget.user.id;
-
 
   Future<void> _loadMessages() async {
     try {
@@ -837,7 +859,6 @@ class _MapProfileModalState extends State<MapProfileModal> {
     }
   }
 
-
   Future<void> _sendMessage(String message, bool isSticker) async {
     try {
       // 1. 通常のDMに送信
@@ -847,7 +868,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
         sticker: isSticker,
         from: 'me',
       ));
-      
+
       // 2. Firebaseのlocationsコレクションにも一時的に保存（1時間で消える）
       await _saveTemporaryMapMessage(message);
     } catch (e) {
@@ -859,15 +880,18 @@ class _MapProfileModalState extends State<MapProfileModal> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      
+
       final now = DateTime.now();
       // 対象ユーザーのlocationsドキュメントに送信者の情報とともに保存
-      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
-        'text': message,
-        'text_time': now.toIso8601String(),
-        'text_from': user.uid, // 送信者のUID
-      });
-      
+      await FirebaseFirestore.instance
+          .collection('locations')
+          .doc(widget.user.id)
+          .update({
+            'text': message,
+            'text_time': now.toIso8601String(),
+            'text_from': user.uid, // 送信者のUID
+          });
+
       debugPrint('一時的なメッセージを${widget.user.id}のlocationsに保存: $message');
     } catch (e) {
       debugPrint('一時的なメッセージの保存エラー: $e');
@@ -947,94 +971,92 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
             ),
 
-            
-
-
             // メッセージリスト
             Expanded(
-        child: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : (_messages.isEmpty
-            ? const SizedBox.shrink()
-            : ListView.builder(
-                          controller: ctrl,
-                          itemCount: _messages.length,
-                          itemBuilder: (context, index) {
-                            final message = _messages[index];
-                            final isMe = message.sent;
-                            return Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 4,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: isMe
-                                    ? MainAxisAlignment.end
-                                    : MainAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    constraints: BoxConstraints(
-                                      maxWidth:
-                                          MediaQuery.of(context).size.width *
-                                              0.7,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isMe
-                                          ? AppTheme.blue500
-                                          : Colors.grey[200],
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          message.text,
-                                          style: TextStyle(
-                                            color: isMe
-                                                ? Colors.white
-                                                : Colors.black,
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : (_messages.isEmpty
+                        ? const SizedBox.shrink()
+                        : ListView.builder(
+                            controller: ctrl,
+                            itemCount: _messages.length,
+                            itemBuilder: (context, index) {
+                              final message = _messages[index];
+                              final isMe = message.sent;
+                              return Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 4,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: isMe
+                                      ? MainAxisAlignment.end
+                                      : MainAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      constraints: BoxConstraints(
+                                        maxWidth:
+                                            MediaQuery.of(context).size.width *
+                                            0.7,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: isMe
+                                            ? AppTheme.blue500
+                                            : Colors.grey[200],
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            message.text,
+                                            style: TextStyle(
+                                              color: isMe
+                                                  ? Colors.white
+                                                  : Colors.black,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey,
+                                                ),
                                               ),
-                                            ),
-                                            FutureBuilder<String>(
-                                              future:
-                                                  _getUserName(message.from),
-                                              builder: (context, nameSnap) {
-                                                return Text(
-                                                  'from: ${nameSnap.data ?? 'Unknown'}',
-                                                  style: const TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.grey,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                              FutureBuilder<String>(
+                                                future: _getUserName(
+                                                  message.from,
+                                                ),
+                                                builder: (context, nameSnap) {
+                                                  return Text(
+                                                    'from: ${nameSnap.data ?? 'Unknown'}',
+                                                    style: const TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.grey,
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        )),
+                                  ],
+                                ),
+                              );
+                            },
+                          )),
             ),
 
             // 親密度ベースのメッセージ入力
@@ -1043,28 +1065,28 @@ class _MapProfileModalState extends State<MapProfileModal> {
               constraints: const BoxConstraints(maxHeight: 200),
               child: SingleChildScrollView(
                 child: IntimacyMessageWidget(
-                targetUserId: widget.user.id,
-                targetUserName: widget.user.name,
-                onSendMessage: (message, isSticker) async {
-                  await _sendMessage(message, isSticker);
-                  // 送信後、実際のDMに遷移
-                  if (mounted) {
-                    Navigator.pop(context); // モーダルを閉じる
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ChatRoomScreen(
-                          name: widget.user.name,
-                          status: widget.user.relationship.label,
-                          peerUid: widget.user.id,
-                          conversationId: widget.user.id,
-                          initialMessage: message,
-                          initialIsSticker: isSticker,
+                  targetUserId: widget.user.id,
+                  targetUserName: widget.user.name,
+                  onSendMessage: (message, isSticker) async {
+                    await _sendMessage(message, isSticker);
+                    // 送信後、実際のDMに遷移
+                    if (mounted) {
+                      Navigator.pop(context); // モーダルを閉じる
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ChatRoomScreen(
+                            name: widget.user.name,
+                            status: widget.user.relationship.label,
+                            peerUid: widget.user.id,
+                            conversationId: widget.user.id,
+                            initialMessage: message,
+                            initialIsSticker: isSticker,
+                          ),
                         ),
-                      ),
-                    );
-                  }
-                },
+                      );
+                    }
+                  },
                 ),
               ),
             ),
@@ -1076,11 +1098,10 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
   Future<void> _clearExpiredMessage() async {
     try {
-      await FirebaseFirestore.instance.collection('locations').doc(widget.user.id).update({
-        'text': '',
-        'text_time': null,
-        'text_from': null,
-      });
+      await FirebaseFirestore.instance
+          .collection('locations')
+          .doc(widget.user.id)
+          .update({'text': '', 'text_time': null, 'text_from': null});
       debugPrint('期限切れメッセージを削除しました');
     } catch (e) {
       debugPrint('期限切れメッセージの削除エラー: $e');
@@ -1089,7 +1110,10 @@ class _MapProfileModalState extends State<MapProfileModal> {
 
   Future<String> _getUserName(String uid) async {
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       if (userDoc.exists) {
         final data = userDoc.data()!;
         return data['name'] ?? data['email'] ?? 'Unknown';
