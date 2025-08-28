@@ -141,11 +141,49 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                             ),
                             child: IconButton(
                               icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                              onPressed: () {
-                                // TODO: 画像選択機能
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('画像選択機能は準備中です')),
+                              onPressed: () async {
+                                // Simple image selection via entering an image URL (no extra dependency)
+                                final urlCtrl = TextEditingController(text: _profile['avatarUrl'] ?? '');
+                                final result = await showDialog<String?>(
+                                  context: context,
+                                  builder: (ctx) {
+                                    return AlertDialog(
+                                      title: const Text('画像URLを入力'),
+                                      content: TextField(
+                                        controller: urlCtrl,
+                                        decoration: const InputDecoration(hintText: 'https://...'),
+                                        keyboardType: TextInputType.url,
+                                      ),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('キャンセル')),
+                                        ElevatedButton(
+                                          onPressed: () => Navigator.of(ctx).pop(urlCtrl.text.trim()),
+                                          child: const Text('保存'),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 );
+
+                                if (result != null && result.isNotEmpty) {
+                                  final url = result;
+                                  setState(() => _isSaving = true);
+                                  try {
+                                    await _settingsService.updateUserProfile({'avatarUrl': url});
+                                    setState(() {
+                                      _profile['avatarUrl'] = url;
+                                    });
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('プロフィール画像を更新しました')));
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('画像更新に失敗しました: $e')));
+                                    }
+                                  } finally {
+                                    setState(() => _isSaving = false);
+                                  }
+                                }
                               },
                             ),
                           ),
