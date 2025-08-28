@@ -32,7 +32,7 @@ Widget build(BuildContext context) {
 	// full-screen (mobile) layout rather than the centered phone-frame UI.
 	// Assumption: widths under 600 are treated as phone-sized.
 	final screenWidth = MediaQuery.of(context).size.width;
-	const phoneWidthThreshold = 600.0;
+	const phoneWidthThreshold = 900.0;
 	final isWeb = kIsWeb;
 	final isNarrow = screenWidth < phoneWidthThreshold;
 
