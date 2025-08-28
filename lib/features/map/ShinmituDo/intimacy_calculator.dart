@@ -75,11 +75,11 @@ class IntimacyCalculator {
   }
 
   int _calculateIntimacyLevel(int encounterSeconds, int meetCount) {
-    if (encounterSeconds > 3600 && meetCount > 10) {
+    if (encounterSeconds > 300 && meetCount > 10) {
       return 4;
-    } else if (encounterSeconds > 1800 && meetCount > 5) {
+    } else if (encounterSeconds > 180 && meetCount > 5) {
       return 3;
-    } else if (encounterSeconds > 600 && meetCount > 2) {
+    } else if (encounterSeconds > 120 && meetCount > 2) {
       return 2;
     } else if (encounterSeconds > 60 && meetCount > 0) {
       return 1;
