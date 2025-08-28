@@ -163,38 +163,52 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
     );
 
-    // On web, render inside phone-like framed container when there is ample width
-    if (kIsWeb) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 900.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
+
+    if (isWeb && !isNarrow) {
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0;
-      final availableWidth = MediaQuery.of(context).size.width;
-      if (availableWidth > maxPhoneWidth) {
-        // Center a framed container similar to AppShell
-        final maxH = MediaQuery.of(context).size.height * 0.95;
-        var width = math.min(maxPhoneWidth, availableWidth);
-        var height = width / aspect;
-        if (height > maxH) {
-          height = maxH;
-          width = height * aspect;
-        }
-
-        return Center(
-          child: Container(
-            width: width,
-            height: height,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
-            ),
-            clipBehavior: Clip.hardEdge,
-            child: scaffold,
-          ),
-        );
+      final availableWidth = screenWidth;
+      // Center a framed container similar to AppShell
+      final maxH = MediaQuery.of(context).size.height * 0.95;
+      var width = math.min(maxPhoneWidth, availableWidth);
+      var height = width / aspect;
+      if (height > maxH) {
+        height = maxH;
+        width = height * aspect;
       }
+
+      return Center(
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: scaffold,
+        ),
+      );
     }
 
-    return scaffold;
+    // For narrow viewports (or non-web), show full-screen scaffold with SizedBox height substitution
+    return Scaffold(
+      appBar: scaffold.appBar,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+            child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: scaffold.body!),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _inputArea() {

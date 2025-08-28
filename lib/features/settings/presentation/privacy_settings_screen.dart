@@ -131,8 +131,31 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use same phone-like framed layout on web as AppShell
-    if (kIsWeb) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 900.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
+
+    final scaffold = Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'プライバシー設定',
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
+    );
+
+    if (isWeb && !isNarrow) {
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0;
 
@@ -157,24 +180,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                 boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
               ),
               clipBehavior: Clip.hardEdge,
-              child: Scaffold(
-                backgroundColor: Colors.transparent,
-                appBar: AppBar(
-                  backgroundColor: Colors.white,
-                  elevation: 0.5,
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  title: const Text(
-                    'プライバシー設定',
-                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                body: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
-              ),
+              child: scaffold,
             ),
           ),
         );
@@ -183,21 +189,16 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'プライバシー設定',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+      appBar: scaffold.appBar,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+            child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: scaffold.body!),
+          ),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
     );
   }
 

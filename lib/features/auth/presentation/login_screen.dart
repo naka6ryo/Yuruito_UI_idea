@@ -37,7 +37,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 		final double actionButtonWidth = 1300;
 
 		final screenWidth = MediaQuery.of(context).size.width;
-		const phoneWidthThreshold = 600.0; // same threshold as AppShell
+		const phoneWidthThreshold = 900.0; // same threshold as AppShell
 		final isWeb = kIsWeb;
 		final isNarrow = screenWidth < phoneWidthThreshold;
 
