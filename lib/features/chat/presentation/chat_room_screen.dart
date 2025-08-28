@@ -4,14 +4,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/services/chat_service.dart';
-import '../../../data/services/chat_service_stub.dart';
+import '../../../data/services/firebase_chat_service.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String name;
   final String status; // 顔見知り → スタンプのみ
   final String? initialMessage;
   final bool initialIsSticker;
-  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false});
+  final String? peerUid; // 追加: 正しい会話識別のために使用
+  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false, this.peerUid});
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -20,10 +21,10 @@ class ChatRoomScreen extends StatefulWidget {
 // Model class removed: messages list is held directly in state for simplicity.
 
 class _ChatRoomScreenState extends State<ChatRoomScreen> {
-  // Replace this stub with your server-backed implementation when ready.
-  final ChatService _chatService = StubChatService();
+  // Firestore実装に差し替え
+  final ChatService _chatService = FirebaseChatService();
 
-  final List<({String text, bool sent, bool sticker, String from})> messages = [];
+  final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> messages = [];
   final ctrl = TextEditingController();
 
   bool get stickerOnly => widget.status == '顔見知り';
@@ -35,22 +36,58 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _load();
   }
 
+  String get _roomId => widget.peerUid ?? widget.name; // 常に peerUid を優先
+
   Future<void> _load() async {
-    final loaded = await _chatService.loadMessages(widget.name);
+    // Clear existing messages first
     setState(() {
-      messages.addAll(loaded);
+      messages.clear();
     });
+    
+    final loaded = await _chatService.loadMessages(_roomId);
+    setState(() {
+      messages.addAll(loaded.map((m) => (
+        text: m.text,
+        sent: m.sent,
+        sticker: m.sticker,
+        from: m.from,
+        timestamp: DateTime.now()
+      )));
+    });
+    
     // Listen for incoming messages
-    _chatService.onMessage(widget.name).listen((m) {
-      setState(() => messages.add(m));
+    _chatService.onMessage(_roomId).listen((m) {
+      // Check if message already exists to prevent duplicates
+      // Use more specific comparison to avoid false positives
+      final exists = messages.any((existing) => 
+        existing.text == m.text && 
+        existing.from == m.from && 
+        existing.sticker == m.sticker &&
+        existing.sent == m.sent
+      );
+      if (!exists) {
+        setState(() => messages.add((
+          text: m.text,
+          sent: m.sent,
+          sticker: m.sticker,
+          from: m.from,
+          timestamp: DateTime.now()
+        )));
+      }
     });
-    // If an initial message/sticker was provided, add and send it now
+    
+    // If an initial message/sticker was provided, send it directly without adding to UI first
     if (widget.initialMessage != null) {
       final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
-      setState(() {
-        messages.add(msg);
-      });
-      await _chatService.sendMessage(widget.name, msg);
+      try {
+        await _chatService.sendMessage(_roomId, msg);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('送信に失敗しました: $e')),
+          );
+        }
+      }
     }
   }
 
@@ -204,22 +241,33 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
   void _toggleStickers() => setState(() => _showStickerPanel = !_showStickerPanel);
 
-  void _sendText() {
+  void _sendText() async {
     if (ctrl.text.trim().isEmpty) return;
-    final msg = (text: ctrl.text.trim(), sent: true, sticker: false, from: 'Me');
-    setState(() {
-      messages.add(msg);
-    });
+    final text = ctrl.text.trim();
     ctrl.clear();
-    _chatService.sendMessage(widget.name, msg);
+    try {
+      final msg = (text: text, sent: true, sticker: false, from: 'Me');
+      await _chatService.sendMessage(_roomId, msg);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('送信に失敗しました: $e')),
+        );
+      }
+    }
   }
 
-  void _sendSticker(String e) {
-    final msg = (text: e, sent: true, sticker: true, from: 'Me');
-    setState(() {
-      messages.add(msg);
-    });
+  void _sendSticker(String e) async {
     _showStickerPanel = false;
-    _chatService.sendMessage(widget.name, msg);
+    try {
+      final msg = (text: e, sent: true, sticker: true, from: 'Me');
+      await _chatService.sendMessage(_roomId, msg);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('送信に失敗しました: $e')),
+        );
+      }
+    }
   }
 }
