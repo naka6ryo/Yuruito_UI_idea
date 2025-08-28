@@ -5,6 +5,7 @@ import '../../../data/repositories/firebase_user_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../widgets/user_card.dart';
+import '../../profile/presentation/my_profile_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -18,9 +19,9 @@ State<HomeScreen> createState() => _HomeScreenState();
 
 class _HomeScreenState extends State<HomeScreen> {
 final repo = FirebaseUserRepository();
-final _auth = FirebaseAuth.instance;  // 認証状態取得
-bool proximityOn = true;  // 接近通知デフォルトON
-bool dmOn = true;         // DM通知デフォルトON
+final _auth = FirebaseAuth.instance;
+bool proximityOn = true;
+bool dmOn = true;
 late Future<List<UserEntity>> acquaintances;
 late Future<List<UserEntity>> newAcq;
 
@@ -41,41 +42,48 @@ children: [
 Card(
 child: Padding(
 padding: const EdgeInsets.all(16),
-child: ListTile(
-contentPadding: EdgeInsets.zero,
-onTap: () {},
-title: const Text('あなた', style: TextStyle(fontWeight: FontWeight.bold)),
-subtitle: _auth.currentUser == null
-    ? null
-    : StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('locations')
-            .doc(_auth.currentUser!.uid)
-            .snapshots(),
-        builder: (context, snap) {
-          if (!snap.hasData || !snap.data!.exists) {
-            return const SizedBox.shrink();
-          }
-          final data = snap.data!.data() as Map<String, dynamic>?;
-          final updatedStr = data?['updatedAt'] as String?;
-          if (updatedStr == null) return const SizedBox.shrink();
-          final updated = DateTime.tryParse(updatedStr);
-          if (updated == null) return const SizedBox.shrink();
-          final isOnline = DateTime.now().difference(updated).inMinutes < 5;
-          return isOnline ? const Text('オンライン') : const SizedBox.shrink();
-        },
-      ),
-trailing: const CircleAvatar(
-radius: 28,
-backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U'),
-),
-),
-),
-),
+child: Column(
+crossAxisAlignment: CrossAxisAlignment.start,
+children: [
+						ListTile(
+							contentPadding: EdgeInsets.zero,
+							onTap: () {
+								Navigator.push(
+									context,
+									MaterialPageRoute(builder: (_) => const MyProfileScreen()),
+								);
+							},
+							title: const Text('あなた', style: TextStyle(fontWeight: FontWeight.bold)),
+							subtitle: _auth.currentUser == null
+								? null
+								: StreamBuilder<DocumentSnapshot>(
+										stream: FirebaseFirestore.instance
+												.collection('locations')
+												.doc(_auth.currentUser!.uid)
+												.snapshots(),
+										builder: (context, snap) {
+											if (!snap.hasData || !snap.data!.exists) {
+												return const SizedBox.shrink();
+											}
+											final data = snap.data!.data() as Map<String, dynamic>?;
+											final updatedStr = data?['updatedAt'] as String?;
+											if (updatedStr == null) return const SizedBox.shrink();
+											final updated = DateTime.tryParse(updatedStr);
+											if (updated == null) return const SizedBox.shrink();
+											final isOnline = DateTime.now().difference(updated).inMinutes < 5;
+											return isOnline ? const Text('オンライン') : const SizedBox.shrink();
+										},
+									),
+							trailing: const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://placehold.co/56x56/3B82F6/FFFFFF.png?text=U')),
+						),
 const Divider(height: 24),
 _toggleRow('接近通知', proximityOn, (v) => setState(() => proximityOn = v)),
 _toggleRow('DM通知', dmOn, (v) => setState(() => dmOn = v)),
-const Divider(height: 24),
+
+],
+),
+),
+),
 const SizedBox(height: 12),
 const Padding(
 padding: EdgeInsets.symmetric(vertical: 8),
@@ -97,7 +105,7 @@ StreamBuilder<List<UserEntity>>(
               children: [
                 const Text('オンラインユーザー', style: TextStyle(fontWeight: FontWeight.w600)),
                 Text(
-                  isLoading ? 'Loading...' : '$userCount人',
+                                     isLoading ? '読み込み中...' : '$userCount人',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
