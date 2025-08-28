@@ -568,6 +568,17 @@ class _MapProfileModalState extends State<MapProfileModal> {
               ),
               child: Column(
                 children: [
+                  // 閉じるボタンを右上に配置
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        color: Colors.grey[600],
+                      ),
+                    ],
+                  ),
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: AppTheme.blue500,
