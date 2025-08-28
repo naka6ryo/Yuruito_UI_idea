@@ -31,12 +31,25 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
     _loadUserData();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ページが再表示された時にデータを再読み込み
+    if (!_isLoading && _latestAnswers.isEmpty) {
+      debugPrint('🔄 didChangeDependencies: 他のユーザーデータ再読み込み');
+      _loadUserData();
+    }
+  }
+
   Future<void> _loadUserData() async {
     try {
-      debugPrint('🔍 ユーザーデータ読み込み開始: ${widget.user.id}');
+      debugPrint('🔍 他のユーザーデータ読み込み開始: ${widget.user.id}');
 
       // 1) profiles/{uid}.photoUrl を最優先で取得
-      final profileDoc = await _firestore.collection('profiles').doc(widget.user.id).get();
+      final profileDoc = await _firestore
+          .collection('profiles')
+          .doc(widget.user.id)
+          .get(const GetOptions(source: Source.server));
       if (profileDoc.exists) {
         final profileData = profileDoc.data();
         final photoUrl = profileData?['photoUrl'] as String?;
@@ -52,32 +65,73 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
         debugPrint('📸 profiles/photoUrl: ドキュメントが存在しません');
       }
 
-      // 2) questionnaireIdを使用して質問回答を取得
-      final profileQuestionnaires = await _firestore
-          .collection('profile_questionnaires')
-          .where('userId', isEqualTo: widget.user.id)
-          .orderBy('createdAt', descending: true)
-          .limit(1)
-          .get();
-
-      debugPrint('📋 profile_questionnaires 検索結果: ${profileQuestionnaires.docs.length}件');
-
-      if (profileQuestionnaires.docs.isNotEmpty) {
-        final latestProfile = profileQuestionnaires.docs.first.data();
+      // 2) users/{uid}.profileAnswers から最新を取得（最優先）
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(widget.user.id)
+          .get(const GetOptions(source: Source.server));
+      final data = userDoc.data();
+      
+      if (data != null && data['profileAnswers'] is Map<String, dynamic>) {
+        final profileAnswers = Map<String, dynamic>.from(data['profileAnswers']);
         _latestAnswers = {
-          'q1': latestProfile['one_word'] ?? '',
-          'q2': latestProfile['favorite_food'] ?? '',
-          'q3': latestProfile['like_work'] ?? '',
-          'q4': latestProfile['like_music_genre'] ?? '',
-          'q5': latestProfile['like_taste_sushi'] ?? '',
-          'q6': latestProfile['what_do_you_use_the_time'] ?? '',
+          'q1': profileAnswers['q1'] ?? '',
+          'q2': profileAnswers['q2'] ?? '',
+          'q3': profileAnswers['q3'] ?? '',
+          'q4': profileAnswers['q4'] ?? '',
+          'q5': profileAnswers['q5'] ?? '',
+          'q6': profileAnswers['q6'] ?? '',
         };
-        debugPrint('✅ questionnaireIdから回答を取得: $_latestAnswers');
+        debugPrint('✅ users/{uid}.profileAnswers から読み込み: $_latestAnswers');
       } else {
-        debugPrint('❌ questionnaireIdにデータがありません');
+        // 3) profile_questionnaires から最新を取得
+        final profileQuestionnaires = await _firestore
+            .collection('profile_questionnaires')
+            .where('userId', isEqualTo: widget.user.id)
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get(const GetOptions(source: Source.server));
+
+        debugPrint('📋 profile_questionnaires 検索結果: ${profileQuestionnaires.docs.length}件');
+
+        if (profileQuestionnaires.docs.isNotEmpty) {
+          final latestProfile = profileQuestionnaires.docs.first.data();
+          _latestAnswers = {
+            'q1': latestProfile['one_word'] ?? '',
+            'q2': latestProfile['favorite_food'] ?? '',
+            'q3': latestProfile['like_work'] ?? '',
+            'q4': latestProfile['like_music_genre'] ?? '',
+            'q5': latestProfile['like_taste_sushi'] ?? '',
+            'q6': latestProfile['what_do_you_use_the_time'] ?? '',
+          };
+          debugPrint('✅ profile_questionnaires から読み込み: $_latestAnswers');
+        } else {
+          // 4) 最後に users/{uid}/questionnaires の最新履歴を確認
+          final hist = await _firestore
+              .collection('users')
+              .doc(widget.user.id)
+              .collection('questionnaires')
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get(const GetOptions(source: Source.server));
+          if (hist.docs.isNotEmpty) {
+            final h = hist.docs.first.data();
+            _latestAnswers = {
+              'q1': h['one_word'] ?? '',
+              'q2': h['favorite_food'] ?? '',
+              'q3': h['like_work'] ?? '',
+              'q4': h['like_music_genre'] ?? '',
+              'q5': h['like_taste_sushi'] ?? '',
+              'q6': h['what_do_you_use_the_time'] ?? '',
+            };
+            debugPrint('✅ users/{uid}/questionnaires から読み込み: $_latestAnswers');
+          } else {
+            debugPrint('❌ どのデータソースにもデータがありません');
+          }
+        }
       }
     } catch (e) {
-      debugPrint('❌ ユーザーデータ読み込みエラー: $e');
+      debugPrint('❌ 他のユーザーデータ読み込みエラー: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -125,7 +179,9 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
                     style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
                   ),
                 ),
-                body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody(context)),
+                body: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody(context)),
               ),
             ),
           ),
@@ -217,18 +273,21 @@ class _OtherUserProfileScreenState extends State<OtherUserProfileScreen> {
                 ),
               ),
 
-              if (widget.user.bio.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  '"${widget.user.bio}"',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black87,
-                    fontStyle: FontStyle.italic,
-                  ),
-                  textAlign: TextAlign.center,
+              // 一言（Firebaseから取得したデータを優先）
+              const SizedBox(height: 16),
+              Text(
+                '"${_latestAnswers['q1']?.isNotEmpty == true 
+                    ? _latestAnswers['q1']! 
+                    : widget.user.bio.isNotEmpty 
+                        ? widget.user.bio 
+                        : 'のんびり過ごしてます。'}"',
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.black87,
+                  fontStyle: FontStyle.italic,
                 ),
-              ],
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
