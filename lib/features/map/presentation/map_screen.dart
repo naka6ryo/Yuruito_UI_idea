@@ -187,6 +187,23 @@ class _MapScreenState extends State<MapScreen>
     final clusterMarkers = await Future.wait(markerFutures);
     newMarkers.addAll(clusterMarkers);
 
+    // 自分の位置から他の全てのクラスタへ線を引く
+    if (myLocation != null) {
+      for (final marker in newMarkers) {
+        if (marker.markerId.value.startsWith('cluster_')) {
+          // クラスタマーカーの場合
+          newPolylines.add(
+            Polyline(
+              polylineId: PolylineId('cluster_conn_${marker.markerId.value}'),
+              points: [myLocation, marker.position],
+              color: Colors.orange, // クラスタと同じオレンジ色
+              width: 3, // 固定の太さ
+            ),
+          );
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
         _visibleMarkers = newMarkers;
