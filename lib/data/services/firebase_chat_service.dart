@@ -86,6 +86,15 @@ class FirebaseChatService implements ChatService {
     final user1Data = user1Doc.data();
     final user2Data = user2Doc.data();
     
+    final user1Name = user1Data?['name'] as String? ?? '';
+    final user2Name = user2Data?['name'] as String? ?? '';
+    
+    // ユーザー名が取得できない場合は会話を作成しない
+    if (user1Name.isEmpty || user2Name.isEmpty) {
+      debugPrint('❌ ユーザー名が取得できません: user1=$user1Name, user2=$user2Name');
+      throw Exception('ユーザー情報が取得できません');
+    }
+    
     await ref.set({
       'members': sortedMembers,
       'lastMessage': '',
@@ -94,16 +103,16 @@ class FirebaseChatService implements ChatService {
       'count_non_read': 0,
       'done_read': [],
       'haveRead': [],
-      'hasInteracted': false,
+      'hasInteracted': true, // スタンプ送信時に確実に表示されるようにtrueに設定
       'lastSender': '',
       'intimacyLevel': finalIntimacyLevel,
       'peerInfo': {
         myId: {
-          'name': user1Data?['name'] ?? 'Unknown User',
+          'name': user1Name,
           'photoUrl': user1Data?['photoUrl'] ?? user1Data?['avatarUrl'] ?? ''
         },
         otherId: {
-          'name': user2Data?['name'] ?? 'Unknown User',
+          'name': user2Name,
           'photoUrl': user2Data?['photoUrl'] ?? user2Data?['avatarUrl'] ?? ''
         }
       }
@@ -169,14 +178,20 @@ class FirebaseChatService implements ChatService {
       'createdAt': FieldValue.serverTimestamp(),
       'intimacyLevel': intimacyLevel ?? 0, // 送信時の親密度レベル
     });
+    
+    // スタンプの場合は適切なメッセージテキストを設定
+    final displayMessage = message.sticker ? '[スタンプ]' : message.text;
+    
     batch.update(convRef, {
-      'lastMessage': message.text,
+      'lastMessage': displayMessage,
       'updatedAt': FieldValue.serverTimestamp(),
       'lastSender': me,
       'hasInteracted': true,
       'intimacyLevel': intimacyLevel ?? 0, // 親密度レベルを更新
     });
+    
     await batch.commit();
+    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: ${convRef.id} - hasInteracted: true');
   }
 
   /// 親密度レベルに基づいてメッセージ送信可能かチェック
@@ -318,29 +333,41 @@ class FirebaseChatService implements ChatService {
       debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId');
       
       if (peerId.isNotEmpty) {
-        // 実際にメッセージがあるかチェック
+        // 実際にメッセージがあるかチェック（スタンプも含む）
         final messagesQuery = await doc.reference.collection('messages').limit(1).get();
         
         debugPrint('💬 会話 ${doc.id}: メッセージ数=${messagesQuery.docs.length}');
         
-        // メッセージがある場合のみ追加
-        if (messagesQuery.docs.isNotEmpty) {
+        // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
+        final hasInteracted = data['hasInteracted'] as bool? ?? false;
+        final lastMessage = data['lastMessage'] as String? ?? '';
+        
+        // スタンプ送信後は確実に表示
+        if (messagesQuery.docs.isNotEmpty || hasInteracted || lastMessage.isNotEmpty) {
           // 親密度レベルを取得
           final intimacyLevel = await _intimacyCalculator.getIntimacyLevel(userId, peerId);
           
-          // 親密度レベル1以上の場合のみ表示（レベル0は非表示）
-          if ((intimacyLevel ?? 0) >= 1) {
+          // 親密度レベル0以上の場合のみ表示（スタンプ送信後は確実に表示）
+          if ((intimacyLevel ?? 0) >= 0) {
             // peerInfoからユーザー情報を取得
             final peerInfo = data['peerInfo'] as Map<String, dynamic>?;
-            String userName = 'Unknown User';
+            String userName = '';
             
             if (peerInfo != null && peerInfo.containsKey(peerId)) {
               final userInfo = peerInfo[peerId] as Map<String, dynamic>?;
-              userName = userInfo?['name'] as String? ?? 'Unknown User';
-            } else {
-              // フォールバック: 直接ユーザー情報を取得
+              userName = userInfo?['name'] as String? ?? '';
+            }
+            
+            // peerInfoから取得できない場合は、直接ユーザー情報を取得
+            if (userName.isEmpty) {
               final userDoc = await _db.collection('users').doc(peerId).get();
-              userName = userDoc.data()?['name'] ?? 'Unknown User';
+              userName = userDoc.data()?['name'] as String? ?? '';
+            }
+            
+            // ユーザー名が取得できない場合はスキップ
+            if (userName.isEmpty) {
+              debugPrint('❌ ユーザー名が取得できません: peerId=$peerId');
+              continue;
             }
             
             final conversation = (
@@ -352,7 +379,7 @@ class FirebaseChatService implements ChatService {
             );
             
             result.add(conversation);
-            debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - 親密度レベル: ${intimacyLevel ?? 0}');
+            debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - 親密度レベル: ${intimacyLevel ?? 0} - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
           } else {
             debugPrint('❌ 親密度不足: 会話 ${doc.id} をスキップ (レベル: ${intimacyLevel ?? 0})');
           }

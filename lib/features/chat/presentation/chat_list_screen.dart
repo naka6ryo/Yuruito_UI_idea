@@ -68,9 +68,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
 				
 				return RefreshIndicator(
 					onRefresh: () async {
-						setState(() {
-							// 画面を再構築してデータを再取得
-						});
+						// 強制的にデータを再取得
+						await _refreshData();
 					},
 					child: ListView.separated(
 						separatorBuilder: (context, index) => const Divider(height: 1),
@@ -190,8 +189,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
 				debugPrint('❌ 会話リスト取得エラー: $e');
 				yield [];
 			}
-			// 3秒ごとに更新
-			await Future.delayed(const Duration(seconds: 3));
+			// 1秒ごとに更新（より頻繁に更新）
+			await Future.delayed(const Duration(seconds: 1));
 		}
 	}
 
