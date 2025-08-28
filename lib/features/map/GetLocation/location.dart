@@ -62,8 +62,6 @@ class LocationService {
 
   /// 他のユーザーの位置情報をリアルタイムで監視開始
   void startWatchingOtherUsersLocations() {
-/// 他のユーザーの位置情報をリアルタイムで監視開始
-  void startWatchingOtherUsersLocations() {
     // [mainの改善点①] 監視を開始する前に、ユーザーがログインしているか確認する
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null) {
@@ -112,7 +110,6 @@ class LocationService {
             debugPrint('他のユーザーの位置情報監視エラー: ${error.toString()}');
           },
         );
-  }
   }
 
   /// 特定のユーザーの位置情報を取得

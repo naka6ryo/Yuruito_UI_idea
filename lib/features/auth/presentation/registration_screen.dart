@@ -10,9 +10,44 @@ State<RegistrationScreen> createState() => _RegistrationScreenState();
 
 
 class _RegistrationScreenState extends State<RegistrationScreen> {
-final nameCtrl = TextEditingController();
-final idCtrl = TextEditingController();
-final pwCtrl = TextEditingController();
+	final nameCtrl = TextEditingController();
+	final idCtrl = TextEditingController();
+	final pwCtrl = TextEditingController();
+	final pwConfirmCtrl = TextEditingController();
+
+	bool _canProceed = false;
+
+	@override
+	void initState() {
+		super.initState();
+		nameCtrl.addListener(_validate);
+		idCtrl.addListener(_validate);
+		pwCtrl.addListener(_validate);
+		pwConfirmCtrl.addListener(_validate);
+	}
+
+	@override
+	void dispose() {
+		nameCtrl.removeListener(_validate);
+		idCtrl.removeListener(_validate);
+		pwCtrl.removeListener(_validate);
+		pwConfirmCtrl.removeListener(_validate);
+		nameCtrl.dispose();
+		idCtrl.dispose();
+		pwCtrl.dispose();
+		pwConfirmCtrl.dispose();
+		super.dispose();
+	}
+
+	void _validate() {
+		final nameOk = (nameCtrl.text.trim()).isNotEmpty;
+		final idOk = (idCtrl.text.trim()).isNotEmpty;
+		final pw = pwCtrl.text;
+		final confirm = pwConfirmCtrl.text;
+		final pwOk = pw.isNotEmpty && pw == confirm;
+		final can = nameOk && idOk && pwOk;
+		if (can != _canProceed) setState(() => _canProceed = can);
+	}
 
 
 @override
@@ -45,14 +80,16 @@ Widget build(BuildContext context) {
 									TextField(controller: idCtrl, decoration: const InputDecoration(labelText: 'ID', filled: true)),
 									const SizedBox(height: 12),
 									TextField(controller: pwCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'パスワード', filled: true)),
+									const SizedBox(height: 12),
+									TextField(controller: pwConfirmCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'パスワード（確認）', filled: true)),
 									const Spacer(),
-									SizedBox(
-										width: double.infinity,
-										child: FilledButton(
-											onPressed: () => Navigator.pushNamed(context, AppRoutes.iconSelect),
-											child: const Text('次へ'),
-										),
-									),
+																		SizedBox(
+																			width: double.infinity,
+																			child: FilledButton(
+																				onPressed: _canProceed ? () => Navigator.pushNamed(context, AppRoutes.iconSelect) : null,
+																				child: const Text('次へ'),
+																			),
+																		),
 									TextButton(onPressed: () => Navigator.pop(context), child: const Text('ログイン画面へ')),
 								],
 							),

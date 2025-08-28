@@ -38,10 +38,12 @@ class ConversationListScreen extends StatelessWidget {
               title: Text(peerUid.isEmpty ? '相手なし' : peerUid),
               subtitle: Text(lastMessage),
               onTap: () async {
+                // Capture navigator/context before async gap to satisfy lint
+                final navigator = Navigator.of(context);
                 // 事前に会話IDを確定させる（重複防止）
-        final cid = await FirebaseChatService().findOrCreateConversation(myId, peerUid);
-        // Navigate to ChatRoomScreen, pass peerUid as conversation identifier
-  Navigator.push(context, MaterialPageRoute(builder: (_) => ChatRoomScreen(name: peerUid, status: '知り合い', conversationId: cid, initialMessage: null)));
+                final cid = await FirebaseChatService().findOrCreateConversation(myId, peerUid);
+                // Navigate to ChatRoomScreen, pass conversationId as identifier
+                navigator.push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: peerUid, status: '知り合い', conversationId: cid, initialMessage: null)));
               },
             );
           },
