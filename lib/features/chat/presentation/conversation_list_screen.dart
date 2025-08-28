@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../data/services/firebase_chat_service.dart';
+import 'chat_room_screen.dart';
 
 class ConversationListScreen extends StatelessWidget {
   final String myId;
@@ -33,14 +34,16 @@ class ConversationListScreen extends StatelessWidget {
             final peerUid = members.firstWhere((e) => e != myId, orElse: () => '');
             final lastMessage = (data['lastMessage'] as String?) ?? '';
 
-            return ListTile(
+      return ListTile(
               title: Text(peerUid.isEmpty ? '相手なし' : peerUid),
               subtitle: Text(lastMessage),
               onTap: () async {
+                // Capture navigator/context before async gap to satisfy lint
+                final navigator = Navigator.of(context);
                 // 事前に会話IDを確定させる（重複防止）
                 final cid = await FirebaseChatService().findOrCreateConversation(myId, peerUid);
-                // TODO: ChatRoomScreen へ遷移（peerUid を渡す）
-                // Navigator.push(context, MaterialPageRoute(builder: (_) => ChatRoomScreen(name: peerUid, status: '知り合い', peerUid: peerUid)));
+                // Navigate to ChatRoomScreen, pass conversationId as identifier
+                navigator.push(MaterialPageRoute(builder: (_) => ChatRoomScreen(name: peerUid, status: '知り合い', conversationId: cid, initialMessage: null)));
               },
             );
           },

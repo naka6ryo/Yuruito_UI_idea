@@ -11,8 +11,8 @@ class ChatRoomScreen extends StatefulWidget {
   final String status; // 顔見知り → スタンプのみ
   final String? initialMessage;
   final bool initialIsSticker;
-  final String? peerUid; // 追加: 正しい会話識別のために使用
-  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false, this.peerUid});
+  final String? conversationId; // 追加: 正しい会話識別のために使用
+  const ChatRoomScreen({super.key, required this.name, required this.status, this.initialMessage, this.initialIsSticker = false, this.conversationId});
 
   @override
   State<ChatRoomScreen> createState() => _ChatRoomScreenState();
@@ -34,7 +34,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     _load();
   }
 
-  String get _roomId => widget.peerUid ?? widget.name; // 常に peerUid を優先
+  String get _roomId => widget.conversationId ?? widget.name; // 常に conversationId を優先
 
   Future<void> _load() async {
     // Clear existing messages first

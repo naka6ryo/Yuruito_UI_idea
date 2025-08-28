@@ -9,6 +9,7 @@ import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
 import '../../../features/map/GetLocation/location.dart';
+import '../../../features/map/ShinmituDo/intimacy_calculator.dart';
 import '../../profile/presentation/other_user_profile_screen.dart';
 import '../../profile/presentation/my_profile_screen.dart';
 import 'dart:ui' as ui;
@@ -304,7 +305,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   final Set<String> newUserIds = users.map((u) => u.id).toSet();
                   final Set<String> existingUserIds = icons.keys.toSet();
                   final Set<String> missingUserIds = newUserIds.difference(existingUserIds);
-                  
+
                   // 新しいユーザーのアイコンを非同期で生成
                   for (final userId in missingUserIds) {
                     final user = users.firstWhere((u) => u.id == userId);
@@ -317,44 +318,87 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     });
                   }
 
-                  final markers = <Marker>{};
-                  final Set<Circle> circles = {};
-                  final Set<Polyline> polylines = {};
-                  
-                  if (myAveragedLocation != null) {
-                    // Add custom marker for 'me' using generated icon when available
-                    final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
-                    // Marker.anchor requires a non-null Offset (x,y) in [0..1]
-                    markers.add(Marker(
-                      markerId: const MarkerId('me'),
-                      position: myAveragedLocation,
-                      icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                      anchor: Offset(meAnchor.dx, meAnchor.dy),
-                      // Remove the small built-in InfoWindow and open full profile modal on first tap.
-                      infoWindow: InfoWindow.noText,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MyProfileScreen()),
-                        );
-                      },
-                    ));
+                  // Prepare meId-based intimacy stream
+                  final String? meId = FirebaseAuth.instance.currentUser?.uid;
+                  final Stream<Map<String, int?>> intimacyStream = meId != null
+                      ? IntimacyCalculator().watchIntimacyMap(meId)
+                      : Stream<Map<String, int?>>.value({});
 
-                    // Add a blue translucent circle under the marker
-                    circles.add(Circle(
-                      circleId: const CircleId('me_circle'),
-                      center: myAveragedLocation,
-                      radius: 50,
-                      fillColor: const Color(0x553B82F6),
-                      strokeColor: const Color(0xFF3B82F6),
-                      strokeWidth: 2,
-                    ));
-                  }
+                  return StreamBuilder<Map<String, int?>>(stream: intimacyStream, builder: (context, intimacySnap) {
+                    final intimacyMap = intimacySnap.data ?? {};
 
-                  for (final u in users) {
-                    if (u.lat != null && u.lng != null) {
+                    final markers = <Marker>{};
+                    final Set<Circle> circles = {};
+                    final Set<Polyline> polylines = {};
+
+                    if (myAveragedLocation != null) {
+                      final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
+                      markers.add(Marker(
+                        markerId: const MarkerId('me'),
+                        position: myAveragedLocation,
+                        icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                        anchor: Offset(meAnchor.dx, meAnchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
+                        },
+                      ));
+
+                      circles.add(Circle(
+                        circleId: const CircleId('me_circle'),
+                        center: myAveragedLocation,
+                        radius: 50,
+                        fillColor: const Color(0x553B82F6),
+                        strokeColor: const Color(0xFF3B82F6),
+                        strokeWidth: 2,
+                      ));
+                    }
+
+                    for (final u in users) {
+                      if (u.lat == null || u.lng == null) continue;
                       final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
                       // Use the computed anchor if available, otherwise bottom-center.
+<<<<<<< HEAD
+                      markers.add(Marker(
+                        markerId: MarkerId(u.id),
+                        position: LatLng(u.lat!, u.lng!),
+                        icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                        anchor: Offset(anchor.dx, anchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => MapProfileModal(user: u),
+                          );
+                        },
+                      ));
+
+                      // Render intimacy circle based on server value (level 0..4)
+                      final int? intimacyLevel = intimacyMap[u.id];
+                      if (intimacyLevel == 0) {
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 30,
+                          fillColor: const Color(0x80FFFFFF),
+                          strokeColor: const Color(0x80FFFFFF),
+                          strokeWidth: 1,
+                        ));
+                      } else if (intimacyLevel != null && intimacyLevel > 0) {
+                        final Color lvlColor = _colorForIntimacyLevel(intimacyLevel);
+                        final int stroke = _circleStrokeWidthForLevel(intimacyLevel);
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 40,
+                          fillColor: lvlColor.withOpacity(0.18),
+                          strokeColor: lvlColor,
+                          strokeWidth: stroke,
+                        ));
+                      }
+=======
                       markers.add(
                         Marker(
                           markerId: MarkerId(u.id),
@@ -374,50 +418,63 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                         ),
                       );
                       // If we have our averaged location, draw a connecting polyline from me -> user
+>>>>>>> 9c611e0e863c310c5aa49c5b537612510a2ffd11
                       if (myAveragedLocation != null) {
-                        // Do not draw lines to users marked as 'passingMaybe'
-                        if (u.relationship != Relationship.passingMaybe) {
-                          final styleColor = _polylineColorForRelationship(u.relationship);
-                          final width = _polylineWidthForRelationship(u.relationship);
-                          polylines.add(Polyline(
-                            polylineId: PolylineId('conn_${u.id}'),
-                            points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
-                            color: styleColor,
-                            width: width,
-                            jointType: JointType.round,
-                            startCap: Cap.roundCap,
-                            endCap: Cap.roundCap,
-                          ));
+                        if (intimacyLevel != null) {
+                          if (intimacyLevel >= 2) {
+                            final styleColor = _polylineColorForIntimacyLevel(intimacyLevel);
+                            final width = _polylineWidthForIntimacyLevel(intimacyLevel);
+                            polylines.add(Polyline(
+                              polylineId: PolylineId('conn_${u.id}'),
+                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                              color: styleColor,
+                              width: width,
+                              jointType: JointType.round,
+                              startCap: Cap.roundCap,
+                              endCap: Cap.roundCap,
+                            ));
+                          }
+                        } else {
+                          if (u.relationship != Relationship.passingMaybe) {
+                            final styleColor = _polylineColorForRelationship(u.relationship);
+                            final width = _polylineWidthForRelationship(u.relationship);
+                            polylines.add(Polyline(
+                              polylineId: PolylineId('conn_${u.id}'),
+                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                              color: styleColor,
+                              width: width,
+                              jointType: JointType.round,
+                              startCap: Cap.roundCap,
+                              endCap: Cap.roundCap,
+                            ));
+                          }
                         }
                       }
                     }
-                  }
 
-                  // Decide initial camera center: prefer local averaged location, then first user, then default Tokyo.
-                  LatLng initialCenter;
-                  if (myAveragedLocation != null) {
-                    initialCenter = myAveragedLocation;
-                  } else {
-                    final initialUser = users.firstWhere(
-                      (u) => u.lat != null && u.lng != null,
-                      orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
+                    // Decide initial camera center
+                    LatLng initialCenter;
+                    if (myAveragedLocation != null) {
+                      initialCenter = myAveragedLocation;
+                    } else {
+                      final initialUser = users.firstWhere((u) => u.lat != null && u.lng != null,
+                          orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917));
+                      initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
+                    }
+
+                    return GoogleMap(
+                      style: _noLabelsMapStyle,
+                      initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
+                      markers: markers,
+                      circles: circles,
+                      polylines: polylines,
+                      myLocationEnabled: false,
+                      myLocationButtonEnabled: false,
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                      },
                     );
-                    initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
-                  }
-
-                  return GoogleMap(
-                    style: _noLabelsMapStyle,
-                    initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
-                    markers: markers,
-                    circles: circles,
-                    polylines: polylines,
-                    myLocationEnabled: false,
-                    myLocationButtonEnabled: false,
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      // style is applied via GoogleMap.style property above
-                    },
-                  );
+                  });
                 },
               );
             },
@@ -471,6 +528,256 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
       default:
         return 2;
     }
+  }
+
+  // Intimacy level -> color mapping. Levels: 0..4
+  Color _colorForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFF4F46E5); // close - indigo
+      case 3:
+        return const Color(0xFF22C55E); // friend - green
+      case 2:
+        return const Color(0xFFF97316); // acquaintance - orange
+      case 1:
+        return const Color(0xFFF9A8D4); // passingMaybe-like soft pink
+      case 0:
+      default:
+        return const Color(0xFFFFFFFF); // white (used semi-transparent for fill)
+    }
+  }
+
+  int _circleStrokeWidthForLevel(int level) {
+    switch (level) {
+      case 4:
+        return 4;
+      case 3:
+        return 3;
+      case 2:
+        return 2;
+      case 1:
+        return 1;
+      default:
+        return 1;
+    }
+  }
+
+  // Polyline color/width derived from intimacy level
+  Color _polylineColorForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFF4F46E5);
+      case 3:
+        return const Color(0xFF22C55E);
+      case 2:
+        return const Color(0xFFF97316);
+      default:
+        return const Color(0xFF9CA3AF);
+    }
+  }
+
+  int _polylineWidthForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return 6;
+      case 3:
+        return 4;
+      case 2:
+        return 2;
+      default:
+        return 1;
+    }
+  }
+}
+
+// Modal for map marker profile and DM input
+class MapProfileModal extends StatefulWidget {
+  final UserEntity user;
+  const MapProfileModal({super.key, required this.user});
+
+  @override
+  State<MapProfileModal> createState() => _MapProfileModalState();
+}
+
+class _MapProfileModalState extends State<MapProfileModal> {
+  final ChatService _chatService = FirebaseChatService();
+  final List<({String text, bool sent, bool sticker, String from, DateTime? timestamp})> _messages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  String get _roomId => widget.user.id;
+
+  Future<void> _loadMessages() async {
+    try {
+      final loaded = await _chatService.loadMessages(_roomId);
+      setState(() {
+        _messages.clear();
+        _messages.addAll(loaded.map((m) => (
+          text: m.text,
+          sent: m.sent,
+          sticker: m.sticker,
+          from: m.from,
+          timestamp: DateTime.now()
+        )));
+        _isLoading = false;
+      });
+
+      // リアルタイムメッセージリスニング
+      _chatService.onMessage(_roomId).listen((m) {
+        if (mounted) {
+          setState(() {
+            _messages.add((
+              text: m.text,
+              sent: m.sent,
+              sticker: m.sticker,
+              from: m.from,
+              timestamp: DateTime.now()
+            ));
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading messages: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _sendMessage(String message, bool isSticker) async {
+    try {
+      await _chatService.sendMessage(_roomId, (
+        text: message,
+        sent: true,
+        sticker: isSticker,
+        from: 'me'
+      ));
+    } catch (e) {
+      debugPrint('Error sending message: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      builder: (ctx, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // ヘッダー部分
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.scaffoldBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  // 閉じるボタンを右上に配置
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                        color: Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: AppTheme.blue500,
+                    child: Text(
+                      widget.user.name.isNotEmpty ? widget.user.name[0] : '?',
+                      style: const TextStyle(color: Colors.white, fontSize: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(widget.user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.user.relationship.label, style: TextStyle(color: AppTheme.blue500)),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: widget.user)),
+                      );
+                    },
+                    child: const Text('プロフィールを見る'),
+                  ),
+                ],
+              ),
+            ),
+            
+            // メッセージリスト
+            Expanded(
+              child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _messages.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'まだメッセージがありません\n下から送信してみてください',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: ctrl,
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final isMe = message.sent;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+                            children: [
+                              Container(
+                                constraints: BoxConstraints(
+                                  maxWidth: MediaQuery.of(context).size.width * 0.7,
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isMe ? AppTheme.blue500 : Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  message.text,
+                                  style: TextStyle(
+                                    color: isMe ? Colors.white : Colors.black,
+                                    fontSize: message.sticker ? 24 : 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            
+            // 親密度ベースのメッセージ入力
+            IntimacyMessageWidget(
+              targetUserId: widget.user.id,
+              targetUserName: widget.user.name,
+              onSendMessage: _sendMessage,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

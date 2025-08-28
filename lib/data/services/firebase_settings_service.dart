@@ -43,7 +43,7 @@ class FirebaseSettingsService {
       debugPrint('✅ 設定保存成功');
     } catch (e) {
       debugPrint('❌ 設定保存エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -78,7 +78,7 @@ class FirebaseSettingsService {
       debugPrint('✅ プロフィール更新成功');
     } catch (e) {
       debugPrint('❌ プロフィール更新エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -97,7 +97,7 @@ class FirebaseSettingsService {
       await saveUserSettings(settings);
     } catch (e) {
       debugPrint('❌ 位置情報設定エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -120,7 +120,7 @@ class FirebaseSettingsService {
       await saveUserSettings(settings);
     } catch (e) {
       debugPrint('❌ 通知設定エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -141,7 +141,7 @@ class FirebaseSettingsService {
       await saveUserSettings(settings);
     } catch (e) {
       debugPrint('❌ プライバシー設定エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -167,7 +167,7 @@ class FirebaseSettingsService {
       debugPrint('✅ メールアドレス更新成功');
     } catch (e) {
       debugPrint('❌ メールアドレス更新エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -190,7 +190,7 @@ class FirebaseSettingsService {
       debugPrint('✅ パスワード更新成功');
     } catch (e) {
       debugPrint('❌ パスワード更新エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -220,7 +220,7 @@ class FirebaseSettingsService {
       debugPrint('✅ アカウント削除成功');
     } catch (e) {
       debugPrint('❌ アカウント削除エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -308,7 +308,7 @@ class FirebaseSettingsService {
       }
     } catch (e) {
       debugPrint('ユーザーブロックエラー: $e');
-      throw e;
+    rethrow;
     }
   }
 
@@ -326,7 +326,7 @@ class FirebaseSettingsService {
       );
     } catch (e) {
       debugPrint('ブロック解除エラー: $e');
-      throw e;
+    rethrow;
     }
   }
 }
