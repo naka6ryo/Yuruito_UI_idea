@@ -148,7 +148,14 @@ child: Text('知り合い', style: TextStyle(fontWeight: FontWeight.bold)),
 FutureBuilder(
 future: acquaintances,
 builder: (context, snap) {
-	final list = snap.data ?? <UserEntity>[];
+
+	final list = (snap.data ?? <UserEntity>[]).toList()
+  ..sort((a, b) => b.relationship.index.compareTo(a.relationship.index));
+
+// snap.data が null のときは空リストにする
+
+
+
 	if (list.isEmpty) return const SizedBox();
 	return Column(
 		children: list.map((u) => UserCard(user: u)).toList(),

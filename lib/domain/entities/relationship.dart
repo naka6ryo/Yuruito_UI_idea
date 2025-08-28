@@ -1,4 +1,4 @@
-enum Relationship { none, acquaintance, friend, close, passingMaybe }
+enum Relationship { none, passingMaybe, acquaintance, friend, close}
 
 
 extension RelationshipX on Relationship {
