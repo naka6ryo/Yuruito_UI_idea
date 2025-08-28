@@ -33,8 +33,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 	Widget build(BuildContext context) {
 		final state = ref.watch(authControllerProvider);
 
-		// Width used for the action buttons so "ログイン" and "新規登録" match.
-		final double actionButtonWidth = 1300;
+	// Width used for the action buttons so "ログイン" and "新規登録" match.
+	// Use full available width on narrow screens so buttons don't force overflow.
+	final double actionButtonWidth = double.infinity;
 
 		final screenWidth = MediaQuery.of(context).size.width;
 		const phoneWidthThreshold = 900.0; // same threshold as AppShell
@@ -120,11 +121,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 		// full-screen for mobile or narrow web
 		return Scaffold(
 			body: SafeArea(
-				child: SingleChildScrollView(
-					padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-					child: ConstrainedBox(
-						constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
-						child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: cardBody()),
+				child: AnimatedPadding(
+					duration: const Duration(milliseconds: 200),
+					padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+					child: SingleChildScrollView(
+						padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+						child: Column(
+							mainAxisSize: MainAxisSize.min,
+							children: [cardBody()],
+						),
 					),
 				),
 			),
