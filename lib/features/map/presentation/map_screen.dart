@@ -9,6 +9,7 @@ import '../../../data/repositories/firebase_user_repository.dart';
 import '../../../domain/entities/user.dart';
 import '../../../domain/entities/relationship.dart';
 import '../../../features/map/GetLocation/location.dart';
+import '../../../features/map/ShinmituDo/intimacy_calculator.dart';
 import '../../profile/presentation/other_user_profile_screen.dart';
 import '../../profile/presentation/my_profile_screen.dart';
 import 'dart:ui' as ui;
@@ -301,7 +302,7 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   final Set<String> newUserIds = users.map((u) => u.id).toSet();
                   final Set<String> existingUserIds = icons.keys.toSet();
                   final Set<String> missingUserIds = newUserIds.difference(existingUserIds);
-                  
+
                   // 新しいユーザーのアイコンを非同期で生成
                   for (final userId in missingUserIds) {
                     final user = users.firstWhere((u) => u.id == userId);
@@ -314,107 +315,135 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                     });
                   }
 
-                  final markers = <Marker>{};
-                  final Set<Circle> circles = {};
-                  final Set<Polyline> polylines = {};
-                  
-                  if (myAveragedLocation != null) {
-                    // Add custom marker for 'me' using generated icon when available
-                    final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
-                    // Marker.anchor requires a non-null Offset (x,y) in [0..1]
-                    markers.add(Marker(
-                      markerId: const MarkerId('me'),
-                      position: myAveragedLocation,
-                      icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                      anchor: Offset(meAnchor.dx, meAnchor.dy),
-                      // Remove the small built-in InfoWindow and open full profile modal on first tap.
-                      infoWindow: InfoWindow.noText,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MyProfileScreen()),
-                        );
-                      },
-                    ));
+                  // Prepare meId-based intimacy stream
+                  final String? meId = FirebaseAuth.instance.currentUser?.uid;
+                  final Stream<Map<String, int?>> intimacyStream = meId != null
+                      ? IntimacyCalculator().watchIntimacyMap(meId)
+                      : Stream<Map<String, int?>>.value({});
 
-                    // Add a blue translucent circle under the marker
-                    circles.add(Circle(
-                      circleId: const CircleId('me_circle'),
-                      center: myAveragedLocation,
-                      radius: 50,
-                      fillColor: const Color(0x553B82F6),
-                      strokeColor: const Color(0xFF3B82F6),
-                      strokeWidth: 2,
-                    ));
-                  }
+                  return StreamBuilder<Map<String, int?>>(stream: intimacyStream, builder: (context, intimacySnap) {
+                    final intimacyMap = intimacySnap.data ?? {};
 
-                  for (final u in users) {
-                    if (u.lat != null && u.lng != null) {
+                    final markers = <Marker>{};
+                    final Set<Circle> circles = {};
+                    final Set<Polyline> polylines = {};
+
+                    if (myAveragedLocation != null) {
+                      final Offset meAnchor = _userIconAnchors['__me__'] ?? const Offset(0.5, 0.34);
+                      markers.add(Marker(
+                        markerId: const MarkerId('me'),
+                        position: myAveragedLocation,
+                        icon: meIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                        anchor: Offset(meAnchor.dx, meAnchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProfileScreen()));
+                        },
+                      ));
+
+                      circles.add(Circle(
+                        circleId: const CircleId('me_circle'),
+                        center: myAveragedLocation,
+                        radius: 50,
+                        fillColor: const Color(0x553B82F6),
+                        strokeColor: const Color(0xFF3B82F6),
+                        strokeWidth: 2,
+                      ));
+                    }
+
+                    for (final u in users) {
+                      if (u.lat == null || u.lng == null) continue;
                       final Offset anchor = _userIconAnchors[u.id] ?? const Offset(0.5, 0.34);
-                      // Use the computed anchor if available, otherwise bottom-center.
-                      markers.add(
-                        Marker(
-                          markerId: MarkerId(u.id),
-                          position: LatLng(u.lat!, u.lng!),
-                          icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
-                          anchor: Offset(anchor.dx, anchor.dy),
-                          // Do not show the small InfoWindow bubble. Open the full profile modal on first tap.
-                          infoWindow: InfoWindow.noText,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => OtherUserProfileScreen(user: u),
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                      // If we have our averaged location, draw a connecting polyline from me -> user
+                      markers.add(Marker(
+                        markerId: MarkerId(u.id),
+                        position: LatLng(u.lat!, u.lng!),
+                        icon: icons[u.id] ?? BitmapDescriptor.defaultMarker,
+                        anchor: Offset(anchor.dx, anchor.dy),
+                        infoWindow: InfoWindow.noText,
+                        onTap: () {
+                          Navigator.push(context, MaterialPageRoute(builder: (_) => OtherUserProfileScreen(user: u)));
+                        },
+                      ));
+
+                      final int? intimacyLevel = intimacyMap[u.id];
+                      if (intimacyLevel == 0) {
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 30,
+                          fillColor: const Color(0x80FFFFFF),
+                          strokeColor: const Color(0x80FFFFFF),
+                          strokeWidth: 1,
+                        ));
+                      } else if (intimacyLevel != null && intimacyLevel > 0) {
+                        final Color lvlColor = _colorForIntimacyLevel(intimacyLevel);
+                        final int stroke = _circleStrokeWidthForLevel(intimacyLevel);
+                        circles.add(Circle(
+                          circleId: CircleId('intimacy_circle_${u.id}'),
+                          center: LatLng(u.lat!, u.lng!),
+                          radius: 40,
+                          fillColor: lvlColor.withOpacity(0.18),
+                          strokeColor: lvlColor,
+                          strokeWidth: stroke,
+                        ));
+                      }
+
                       if (myAveragedLocation != null) {
-                        // Do not draw lines to users marked as 'passingMaybe'
-                        if (u.relationship != Relationship.passingMaybe) {
-                          final styleColor = _polylineColorForRelationship(u.relationship);
-                          final width = _polylineWidthForRelationship(u.relationship);
-                          polylines.add(Polyline(
-                            polylineId: PolylineId('conn_${u.id}'),
-                            points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
-                            color: styleColor,
-                            width: width,
-                            jointType: JointType.round,
-                            startCap: Cap.roundCap,
-                            endCap: Cap.roundCap,
-                          ));
+                        if (intimacyLevel != null) {
+                          if (intimacyLevel >= 2) {
+                            final styleColor = _polylineColorForIntimacyLevel(intimacyLevel);
+                            final width = _polylineWidthForIntimacyLevel(intimacyLevel);
+                            polylines.add(Polyline(
+                              polylineId: PolylineId('conn_${u.id}'),
+                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                              color: styleColor,
+                              width: width,
+                              jointType: JointType.round,
+                              startCap: Cap.roundCap,
+                              endCap: Cap.roundCap,
+                            ));
+                          }
+                        } else {
+                          if (u.relationship != Relationship.passingMaybe) {
+                            final styleColor = _polylineColorForRelationship(u.relationship);
+                            final width = _polylineWidthForRelationship(u.relationship);
+                            polylines.add(Polyline(
+                              polylineId: PolylineId('conn_${u.id}'),
+                              points: [myAveragedLocation, LatLng(u.lat!, u.lng!)],
+                              color: styleColor,
+                              width: width,
+                              jointType: JointType.round,
+                              startCap: Cap.roundCap,
+                              endCap: Cap.roundCap,
+                            ));
+                          }
                         }
                       }
                     }
-                  }
 
-                  // Decide initial camera center: prefer local averaged location, then first user, then default Tokyo.
-                  LatLng initialCenter;
-                  if (myAveragedLocation != null) {
-                    initialCenter = myAveragedLocation;
-                  } else {
-                    final initialUser = users.firstWhere(
-                      (u) => u.lat != null && u.lng != null,
-                      orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917),
+                    // Decide initial camera center
+                    LatLng initialCenter;
+                    if (myAveragedLocation != null) {
+                      initialCenter = myAveragedLocation;
+                    } else {
+                      final initialUser = users.firstWhere((u) => u.lat != null && u.lng != null,
+                          orElse: () => UserEntity(id: 'you', name: 'You', bio: '', avatarUrl: null, relationship: Relationship.none, lat: 35.6895, lng: 139.6917));
+                      initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
+                    }
+
+                    return GoogleMap(
+                      style: _noLabelsMapStyle,
+                      initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
+                      markers: markers,
+                      circles: circles,
+                      polylines: polylines,
+                      myLocationEnabled: false,
+                      myLocationButtonEnabled: false,
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                      },
                     );
-                    initialCenter = LatLng(initialUser.lat!, initialUser.lng!);
-                  }
-
-                  return GoogleMap(
-                    style: _noLabelsMapStyle,
-                    initialCameraPosition: CameraPosition(target: initialCenter, zoom: 14),
-                    markers: markers,
-                    circles: circles,
-                    polylines: polylines,
-                    myLocationEnabled: false,
-                    myLocationButtonEnabled: false,
-                    onMapCreated: (controller) {
-                      _mapController = controller;
-                      // style is applied via GoogleMap.style property above
-                    },
-                  );
+                  });
                 },
               );
             },
@@ -467,6 +496,65 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
         return 1; // thin / subtle
       default:
         return 2;
+    }
+  }
+
+  // Intimacy level -> color mapping. Levels: 0..4
+  Color _colorForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFF4F46E5); // close - indigo
+      case 3:
+        return const Color(0xFF22C55E); // friend - green
+      case 2:
+        return const Color(0xFFF97316); // acquaintance - orange
+      case 1:
+        return const Color(0xFFF9A8D4); // passingMaybe-like soft pink
+      case 0:
+      default:
+        return const Color(0xFFFFFFFF); // white (used semi-transparent for fill)
+    }
+  }
+
+  int _circleStrokeWidthForLevel(int level) {
+    switch (level) {
+      case 4:
+        return 4;
+      case 3:
+        return 3;
+      case 2:
+        return 2;
+      case 1:
+        return 1;
+      default:
+        return 1;
+    }
+  }
+
+  // Polyline color/width derived from intimacy level
+  Color _polylineColorForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFF4F46E5);
+      case 3:
+        return const Color(0xFF22C55E);
+      case 2:
+        return const Color(0xFFF97316);
+      default:
+        return const Color(0xFF9CA3AF);
+    }
+  }
+
+  int _polylineWidthForIntimacyLevel(int level) {
+    switch (level) {
+      case 4:
+        return 6;
+      case 3:
+        return 4;
+      case 2:
+        return 2;
+      default:
+        return 1;
     }
   }
 }
