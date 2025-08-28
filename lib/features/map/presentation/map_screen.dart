@@ -48,6 +48,7 @@ class _MapScreenState extends State<MapScreen>
 
   Map<String, int?> _intimacyMap = {};
   Set<Polyline> _visiblePolylines = {};
+  Map<String, BitmapDescriptor> _userIcons = {};
 
   late Future<List<dynamic>> _prepareDataFuture;
   final FirebaseUserRepository _userRepository = FirebaseUserRepository();
@@ -75,9 +76,7 @@ class _MapScreenState extends State<MapScreen>
   }
 
   // 表示するマーカーを計算・更新する
-  Future<void> _updateVisibleMarkers(
-    Map<String, BitmapDescriptor> icons,
-  ) async {
+  Future<void> _updateVisibleMarkers() async {
     final double threshold = _getClusteringThreshold(_currentZoom);
     final Set<Marker> newMarkers = {};
     final List<Future<Marker>> markerFutures = [];
@@ -92,7 +91,7 @@ class _MapScreenState extends State<MapScreen>
             Marker(
               markerId: MarkerId(user.id),
               position: LatLng(user.lat!, user.lng!),
-              icon: icons[user.id] ?? BitmapDescriptor.defaultMarker,
+              icon: _userIcons[user.id] ?? BitmapDescriptor.defaultMarker,
               anchor: _userIconAnchors[user.id] ?? const Offset(0.5, 0.34),
               onTap: () {
                 showModalBottomSheet(
@@ -155,7 +154,7 @@ class _MapScreenState extends State<MapScreen>
           Marker(
             markerId: MarkerId(baseUser.id),
             position: LatLng(baseUser.lat!, baseUser.lng!),
-            icon: icons[baseUser.id] ?? BitmapDescriptor.defaultMarker,
+            icon: _userIcons[baseUser.id] ?? BitmapDescriptor.defaultMarker,
             anchor: _userIconAnchors[baseUser.id] ?? const Offset(0.5, 0.34),
             onTap: () {
               showModalBottomSheet(
@@ -272,14 +271,19 @@ class _MapScreenState extends State<MapScreen>
 
     final meId = FirebaseAuth.instance.currentUser?.uid;
     if (meId != null) {
-      IntimacyCalculator().watchIntimacyMap(meId).listen((intimacyMap) {
+      IntimacyCalculator().watchIntimacyMap(meId).listen((intimacyMap) async {
         if (mounted) {
+          _intimacyMap = intimacyMap;
+          // 親密度の変更に応じてアイコンを再生成
+          for (final userId in intimacyMap.keys) {
+            final user = _allUsers.firstWhere((u) => u.id == userId, orElse: () => UserEntity(id: '', name: ''));
+            if (user.id.isNotEmpty) {
+              final newIcon = await _markerForUser(user, intimacyLevel: intimacyMap[userId]);
+              _userIcons[userId] = newIcon;
+            }
+          }
           setState(() {
-            _intimacyMap = intimacyMap;
-          });
-          _prepareDataFuture.then((data) {
-            final icons = data[1] as Map<String, BitmapDescriptor>;
-            _updateVisibleMarkers(icons);
+            _updateVisibleMarkers();
           });
         }
       });
@@ -419,9 +423,10 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  Future<BitmapDescriptor> _markerForUser(UserEntity u) async {
-    if (_userIconCache.containsKey(u.id)) return _userIconCache[u.id]!;
-    final color = _colorForRelationship(u.relationship);
+  Future<BitmapDescriptor> _markerForUser(UserEntity u, {int? intimacyLevel}) async {
+    final cacheKey = '${u.id}_${intimacyLevel ?? 'default'}';
+    if (_userIconCache.containsKey(cacheKey)) return _userIconCache[cacheKey]!;
+    final color = _polylineColorForIntimacyLevel(intimacyLevel ?? 0);
     final text = u.name;
     final paragraphStyle = ui.ParagraphStyle(
       textDirection: ui.TextDirection.ltr,
@@ -496,7 +501,7 @@ class _MapScreenState extends State<MapScreen>
       }
       // ignore: deprecated_member_use
       final descriptor = BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
-      _userIconCache[u.id] = descriptor;
+      _userIconCache[cacheKey] = descriptor;
       final double anchorY = (circleDiameter / 2) / height;
       _userIconAnchors[u.id] = Offset(0.5, anchorY);
       debugPrint(
@@ -506,7 +511,7 @@ class _MapScreenState extends State<MapScreen>
     } catch (e) {
       debugPrint('Failed to generate marker image for ${u.id}: $e');
       final descriptor = BitmapDescriptor.defaultMarker;
-      _userIconCache[u.id] = descriptor;
+      _userIconCache[cacheKey] = descriptor;
       _userIconAnchors[u.id] = const Offset(0.5, 1.0);
       return descriptor;
     }
@@ -517,16 +522,16 @@ class _MapScreenState extends State<MapScreen>
     final firebaseRepo = FirebaseUserRepository();
     await firebaseRepo.initializeCurrentUser();
     final users = await firebaseRepo.fetchAllUsers();
-    final Map<String, BitmapDescriptor> userIcons = {};
+    _allUsers = users;
     for (final u in users) {
-      userIcons[u.id] = await _markerForUser(u);
+      _userIcons[u.id] = await _markerForUser(u);
     }
     final meName =
         FirebaseAuth.instance.currentUser?.displayName ??
         FirebaseAuth.instance.currentUser?.uid ??
         'Me';
     final BitmapDescriptor meIcon = await _markerForMe(meName);
-    return [users, userIcons, meIcon];
+    return [_allUsers, _userIcons, meIcon];
   }
 
   @override
@@ -567,7 +572,6 @@ class _MapScreenState extends State<MapScreen>
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final icons = (snap.data![1] as Map<String, BitmapDescriptor>);
           final BitmapDescriptor? meIcon = snap.data![2] as BitmapDescriptor?;
           return StreamBuilder<List<UserEntity>>(
             stream: _userRepository.watchAllUsersWithLocations(),
@@ -575,7 +579,7 @@ class _MapScreenState extends State<MapScreen>
               if (userSnapshot.hasData) {
                 _allUsers = userSnapshot.data!;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) _updateVisibleMarkers(icons);
+                  if (mounted) _updateVisibleMarkers();
                 });
               }
               return ValueListenableBuilder<LatLng?>(
@@ -631,7 +635,7 @@ class _MapScreenState extends State<MapScreen>
                     onCameraIdle: () async {
                       if (_mapController != null) {
                         _currentZoom = await _mapController!.getZoomLevel();
-                        _updateVisibleMarkers(icons);
+                        _updateVisibleMarkers();
                       }
                     },
                   );
@@ -642,21 +646,6 @@ class _MapScreenState extends State<MapScreen>
         },
       ),
     );
-  }
-
-  Color _colorForRelationship(Relationship r) {
-    switch (r) {
-      case Relationship.close:
-        return const Color(0xFFA78BFA);
-      case Relationship.friend:
-        return const Color(0xFF86EFAC);
-      case Relationship.acquaintance:
-        return const Color(0xFFFDBA74);
-      case Relationship.passingMaybe:
-        return const Color(0xFFF9A8D4);
-      default:
-        return Colors.indigo;
-    }
   }
 
   Color _polylineColorForRelationship(Relationship r) {
