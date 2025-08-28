@@ -15,13 +15,18 @@ State<IconSelectionScreen> createState() => _IconSelectionScreenState();
 
 class _IconSelectionScreenState extends State<IconSelectionScreen> {
 	List<String> icons = [];
-	// selected holds the asset path when using image icons, or emoji char for fallback
+	// selected holds the asset or network path
 	String? selected;
 
 	@override
 	void initState() {
 		super.initState();
-		_loadIconsFromManifest();
+		_loadChoices();
+	}
+
+	Future<void> _loadChoices() async {
+		await _loadIconsFromManifest();
+		await _loadSavedPhotoFromFirestore();
 	}
 
 	Future<void> _loadIconsFromManifest() async {
@@ -41,18 +46,33 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 		}
 	}
 
+	Future<void> _loadSavedPhotoFromFirestore() async {
+		try {
+			final user = FirebaseAuth.instance.currentUser;
+			if (user == null) return;
+			final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+			final data = doc.data();
+			final saved = (data?['photoUrl'] ?? data?['avatarUrl']) as String?;
+			if (saved != null && saved.isNotEmpty) {
+				if (!icons.contains(saved)) {
+					setState(() => icons = [saved, ...icons]);
+				}
+			}
+		} catch (_) {}
+	}
+
 	Future<void> _persistSelection() async {
 		final user = FirebaseAuth.instance.currentUser;
 		if (user == null) return;
 		final firestore = FirebaseFirestore.instance;
 		final avatarUrl = selected == 'emoji_fallback' || selected == null ? null : selected;
 		try {
-			// Update Auth profile photoURL (store asset path string for now)
 			if (avatarUrl != null) {
 				await user.updatePhotoURL(avatarUrl);
 			}
 			await firestore.collection('users').doc(user.uid).set({
 				'avatarUrl': avatarUrl,
+				'photoUrl': avatarUrl,
 				'updatedAt': DateTime.now().toIso8601String(),
 			}, SetOptions(merge: true));
 		} catch (e) {
@@ -63,87 +83,88 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 
 @override
 Widget build(BuildContext context) {
-		return Scaffold(
-			body: Center(
-				child: ConstrainedBox(
-					constraints: const BoxConstraints(maxWidth: 420),
-					child: AspectRatio(
-						aspectRatio: 9 / 19.5,
-						child: Card(
-							margin: const EdgeInsets.all(16),
-							shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-							child: Padding(
-								padding: const EdgeInsets.all(16),
-								child: Column(
-									children: [
-										Row(
-											children: [
-												BackButton(),
-												const SizedBox(width: 8),
-												const Expanded(child: Text('ユーザー登録', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
-											],
-										),
-										const SizedBox(height: 8),
-										Expanded(
-											child: Column(
-												mainAxisAlignment: MainAxisAlignment.center,
-												children: [
-													const Padding(
-														padding: EdgeInsets.only(bottom: 8.0),
-														child: Text('アイコンを選択してください', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
-													),
-													Center(
-														child: GridView.count(
-															shrinkWrap: true,
-															physics: const NeverScrollableScrollPhysics(),
-															crossAxisCount: 4,
-															mainAxisSpacing: 12,
-															crossAxisSpacing: 12,
-															padding: const EdgeInsets.symmetric(vertical: 8),
-															children: (icons.isNotEmpty ? icons : ['emoji_fallback']).map((e) {
-																final isImage = e != 'emoji_fallback';
-																return GestureDetector(
-																	onTap: () => setState(() => selected = e),
-																	child: Container(
-																		decoration: BoxDecoration(
-																			color: Colors.grey[200],
-																			borderRadius: BorderRadius.circular(999),
-																			border: Border.all(color: selected == e ? Colors.blue : Colors.transparent, width: 2),
-																		),
-																		alignment: Alignment.center,
-																		child: isImage
-																				? ClipOval(
-																						child: Image.asset(e, width: 56, height: 56, fit: BoxFit.cover),
-																					)
-																				: const Text('😊', style: TextStyle(fontSize: 32)),
-																	),
-																);
-															}).toList(),
-														),
-													),
-												],
-											),
-										),
-										SizedBox(
-											width: double.infinity,
-											child: FilledButton(
-												onPressed: selected == null
-													? null
-													: () async {
-														await _persistSelection();
-														if (!mounted) return;
-														Navigator.pushNamed(context, AppRoutes.questionnaire);
-													},
-												child: const Text('次へ'),
-											),
-										),
-									],
-								),
-							),
-						),
-					),
-				),
-			),
-		);
+  return Scaffold(
+    body: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: AspectRatio(
+          aspectRatio: 9 / 19.5,
+          child: Card(
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      BackButton(),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('ユーザー登録', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 8.0),
+                          child: Text('アイコンを選択してください', textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
+                        ),
+                        Center(
+                          child: GridView.count(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            crossAxisCount: 4,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            children: (icons.isNotEmpty ? icons : ['emoji_fallback']).map((e) {
+                              final bool isEmojiFallback = e == 'emoji_fallback';
+                              final bool isNetwork = e.startsWith('http://') || e.startsWith('https://');
+                              return GestureDetector(
+                                onTap: () => setState(() => selected = e),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: selected == e ? Colors.blue : Colors.transparent, width: 2),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: isEmojiFallback
+                                      ? const Text('😊', style: TextStyle(fontSize: 32))
+                                      : isNetwork
+                                          ? ClipOval(child: Image.network(e, width: 56, height: 56, fit: BoxFit.cover))
+                                          : ClipOval(child: Image.asset(e, width: 56, height: 56, fit: BoxFit.cover)),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: selected == null
+                          ? null
+                          : () async {
+                              await _persistSelection();
+                              if (!mounted) return;
+                              Navigator.pushNamed(context, AppRoutes.questionnaire);
+                            },
+                      child: const Text('次へ'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 }
