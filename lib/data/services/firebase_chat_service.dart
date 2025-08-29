@@ -248,7 +248,10 @@ class FirebaseChatService implements ChatService {
         ? parts[0]
         : (currentUser?.uid ?? '');
     final peer = parts.length > 1 ? parts[1] : roomId;
-    _ensureConversation(currentUid: me, peerUid: peer).then((convRef) {
+    
+    // 会話IDを取得または作成してからストリームを開始
+    findOrCreateConversation(me, peer).then((conversationId) {
+      final convRef = _conversationsCol().doc(conversationId);
       _sub = convRef
           .collection('messages')
           .orderBy('createdAt', descending: false)
@@ -266,6 +269,9 @@ class FirebaseChatService implements ChatService {
           }
         }
       });
+    }).catchError((error) {
+      debugPrint('❌ 会話作成エラー: $error');
+      controller.close();
     });
 
     controller.onCancel = () {
@@ -323,12 +329,29 @@ class FirebaseChatService implements ChatService {
         // 2人の会話の場合
         peerId = members.firstWhere((id) => id != userId, orElse: () => '');
       } else {
-        // 会話IDからpeerIdを抽出（形式: user1_user2）
-        final parts = doc.id.split('_');
-        if (parts.length >= 2) {
-          final user1 = parts[0];
-          final user2 = parts[1];
-          peerId = user1 == userId ? user2 : user1;
+        // 複雑な会話IDの場合、members配列から正しいpeerIdを抽出
+        for (final memberId in members) {
+          if (memberId != userId) {
+            // Firebase UIDの形式チェック（28文字の英数字）
+            if (memberId.length == 28 && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(memberId)) {
+              peerId = memberId;
+              break;
+            }
+          }
+        }
+        
+        // peerIdが取得できない場合は、会話IDから抽出を試行
+        if (peerId.isEmpty) {
+          final parts = doc.id.split('_');
+          if (parts.length >= 2) {
+            final user1 = parts[0];
+            final user2 = parts[1];
+            if (user1 == userId && user2.length == 28) {
+              peerId = user2;
+            } else if (user2 == userId && user1.length == 28) {
+              peerId = user1;
+            }
+          }
         }
       }
       
@@ -336,16 +359,32 @@ class FirebaseChatService implements ChatService {
       
       if (peerId.isNotEmpty && peerId != userId) {
         // 実際にメッセージがあるかチェック（スタンプも含む）
-        final messagesQuery = await doc.reference.collection('messages').limit(1).get();
+        final messagesQuery = await doc.reference.collection('messages').get();
         
         debugPrint('💬 会話 ${doc.id}: メッセージ数=${messagesQuery.docs.length}');
+        
+        // 相手が送ってきたメッセージがあるかチェック
+        bool hasMessageFromPeer = false;
+        for (final messageDoc in messagesQuery.docs) {
+          final messageData = messageDoc.data();
+          final messageFrom = messageData['from'] as String? ?? '';
+          if (messageFrom == peerId) {
+            hasMessageFromPeer = true;
+            break;
+          }
+        }
         
         // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
         final hasInteracted = data['hasInteracted'] as bool? ?? false;
         final lastMessage = data['lastMessage'] as String? ?? '';
+        final lastSender = data['lastSender'] as String? ?? '';
         
-        // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
-        if (messagesQuery.docs.isNotEmpty || hasInteracted || lastMessage.isNotEmpty) {
+        // 相手が送ってきたメッセージが1個でもあれば表示
+        // または自分が送信したメッセージがある場合も表示
+        final hasAnyMessage = messagesQuery.docs.isNotEmpty;
+        final hasInteraction = hasInteracted || lastMessage.isNotEmpty;
+        
+        if (hasMessageFromPeer || hasAnyMessage || hasInteraction) {
           // 直接ユーザー情報を取得（peerInfoは信頼性が低いため）
           String userName = '';
           try {
@@ -372,7 +411,7 @@ class FirebaseChatService implements ChatService {
           );
           
           result.add(conversation);
-          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
+          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage" - hasMessageFromPeer: $hasMessageFromPeer');
         } else {
           debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
         }
