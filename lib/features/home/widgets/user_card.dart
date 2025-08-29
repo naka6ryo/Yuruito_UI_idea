@@ -112,20 +112,7 @@ return u.bio;
 }
 
 
-Color _getRelationshipColor(Relationship relationship) {
-  switch (relationship) {
-    case Relationship.close:
-      return const Color(0xFFA78BFA); // 紫
-    case Relationship.friend:
-      return const Color(0xFF86EFAC); // 緑
-    case Relationship.acquaintance:
-      return const Color(0xFFFDBA74); // オレンジ
-    case Relationship.passingMaybe:
-      return const Color(0xFFF9A8D4); // ピンク
-    case Relationship.none:
-      return Colors.grey;
-  }
-}
+
 
 Widget? _badge(int? actualLevel) {
 	// 実際の親密度レベルがnullまたは0の場合はタグを表示しない
@@ -138,19 +125,19 @@ Widget? _badge(int? actualLevel) {
 	switch (actualLevel) {
 		case 4:
 			label = '仲良し';
-			color = const Color(0xFFA78BFA); // 紫
+			color = const Color(0xFF9B5DE5); // 紫
 			break;
 		case 3:
 			label = '友達';
-			color = const Color(0xFF86EFAC); // 緑
+			color = const Color(0xFFF15BB5); // ピンク
 			break;
 		case 2:
 			label = '顔見知り';
-			color = const Color(0xFFFDBA74); // オレンジ
+			color = const Color(0xFFFEE440); // 黄
 			break;
 		case 1:
 			label = '知り合いかも';
-			color = const Color(0xFFF9A8D4); // ピンク
+			color = const Color(0xFF00F5D4); // シアン/ティール
 			break;
 		default:
 			return null;
@@ -163,18 +150,35 @@ Widget? _badge(int? actualLevel) {
 	return Container(
 		padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
 		decoration: BoxDecoration(
-			color: Color.fromRGBO(red, green, blue, 0.1),
+			color: (actualLevel == 3 || actualLevel == 4) ? Color.fromRGBO(red, green, blue, 0.1) : Color.fromRGBO(red, green, blue, 0.7),
 			borderRadius: BorderRadius.circular(12),
 		),
-		child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+		child: Text(label, style: TextStyle(color: (actualLevel == 1 || actualLevel == 2) ? Colors.white : color, fontWeight: FontWeight.w600, fontSize: 12)),
 	);
 }
 
+  Color _getIntimacyLevelColor(int? level) {
+    switch (level) {
+      case 4:
+        return const Color(0xFF9B5DE5); // レベル4: 仲良し
+      case 3:
+        return const Color(0xFFF15BB5); // レベル3: 友達
+      case 2:
+        return const Color(0xFFFEE440); // レベル2: 顔見知り
+      case 1:
+        return const Color(0xFF00F5D4); // レベル1: 知り合いかも
+      default:
+        return Colors.grey; // デフォルトまたはレベル0
+    }
+  }
+
   Widget _buildAvatar() {
+    final avatarColor = _getIntimacyLevelColor(widget.actualIntimacyLevel);
+
     if (_userPhotoUrl != null) {
       return CircleAvatar(
         radius: 24,
-        backgroundColor: _getRelationshipColor(widget.user.relationship),
+        backgroundColor: avatarColor,
         backgroundImage: AssetImage(_userPhotoUrl!),
         child: null,
       );
@@ -183,7 +187,7 @@ Widget? _badge(int? actualLevel) {
     // デフォルトの文字アイコン
     return CircleAvatar(
       radius: 24,
-      backgroundColor: _getRelationshipColor(widget.user.relationship),
+      backgroundColor: avatarColor,
       child: Text(
         widget.user.name.isNotEmpty ? widget.user.name[0].toUpperCase() : 'U',
         style: const TextStyle(
