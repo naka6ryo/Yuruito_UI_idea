@@ -106,7 +106,7 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			debugPrint('✅ アイコンをStorageにアップロード: $downloadUrl');
 			return downloadUrl;
 		} catch (e) {
-			debugPrint('❌ アイコンアップロードエラー: $e');
+			debugPrint('❌ アイコンアップロードエラー:$e');
 			return '';
 		}
 	}
