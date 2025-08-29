@@ -280,7 +280,8 @@ class FirebaseSettingsService {
           blockedUsers.add({
             'id': userId,
             'name': userData['name'] ?? 'Unknown',
-            'avatarUrl': userData['avatarUrl'],
+            // 表示は photoUrl 優先
+            'avatarUrl': userData['photoUrl'] ?? userData['avatarUrl'],
           });
         }
       }

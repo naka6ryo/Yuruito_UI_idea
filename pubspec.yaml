@@ -1,5 +1,5 @@
 name: yuruito
-description: "A new Flutter project."
+description: "ゆるい関係を築くためのソーシャルアプリ"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -44,6 +44,7 @@ dependencies:
   cloud_firestore: ^6.0.0
   firebase_auth: ^6.0.1
   firebase_storage: ^13.0.0
+  firebase_data_connect: any
   lottie: ^2.4.0
 
 dev_dependencies:

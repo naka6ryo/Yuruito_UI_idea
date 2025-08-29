@@ -20,4 +20,21 @@ class StubChatService implements ChatService {
     // Very simple stub stream: returns a stream that never emits
     return const Stream<({String text, bool sent, bool sticker, String from})>.empty();
   }
+
+  @override
+  Future<void> markAsRead(String conversationId, String userId) async {
+    // no-op stub
+  }
+
+  @override
+  Future<List<({String conversationId, String peerName, String lastMessage, DateTime? updatedAt, int unreadCount})>> getConversations(String userId) async {
+    // Return empty list for stub
+    return [];
+  }
+
+  @override
+  Future<String> findOrCreateConversation(String myId, String otherId) async {
+    // Return a stub conversation ID
+    return 'stub_${myId}_$otherId';
+  }
 }

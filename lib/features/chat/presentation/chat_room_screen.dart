@@ -95,7 +95,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     });
     
     // If an initial message/sticker was provided, send it directly without adding to UI first
-    if (widget.initialMessage != null) {
+    if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
       final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
       try {
         await _chatService.sendMessage(_roomId, msg);
@@ -163,38 +163,52 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ),
     );
 
-    // On web, render inside phone-like framed container when there is ample width
-    if (kIsWeb) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 900.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
+
+    if (isWeb && !isNarrow) {
       const aspect = 9 / 19.5;
       const maxPhoneWidth = 384.0;
-      final availableWidth = MediaQuery.of(context).size.width;
-      if (availableWidth > maxPhoneWidth) {
-        // Center a framed container similar to AppShell
-        final maxH = MediaQuery.of(context).size.height * 0.95;
-        var width = math.min(maxPhoneWidth, availableWidth);
-        var height = width / aspect;
-        if (height > maxH) {
-          height = maxH;
-          width = height * aspect;
-        }
-
-        return Center(
-          child: Container(
-            width: width,
-            height: height,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
-            ),
-            clipBehavior: Clip.hardEdge,
-            child: scaffold,
-          ),
-        );
+      final availableWidth = screenWidth;
+      // Center a framed container similar to AppShell
+      final maxH = MediaQuery.of(context).size.height * 0.95;
+      var width = math.min(maxPhoneWidth, availableWidth);
+      var height = width / aspect;
+      if (height > maxH) {
+        height = maxH;
+        width = height * aspect;
       }
+
+      return Center(
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: scaffold,
+        ),
+      );
     }
 
-    return scaffold;
+    // For narrow viewports (or non-web), show full-screen scaffold with SizedBox height substitution
+    return Scaffold(
+      appBar: scaffold.appBar,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+            child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: scaffold.body!),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _inputArea() {
@@ -210,6 +224,19 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               onSendMessage: (message, isSticker) async {
                 try {
                   final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
+                  
+                  // 送信前にUIに追加（即座に表示）
+                  setState(() {
+                    messages.add((
+                      text: message,
+                      sent: true,
+                      sticker: isSticker,
+                      from: 'Me',
+                      timestamp: DateTime.now()
+                    ));
+                  });
+                  
+                  // 送信処理
                   await _chatService.sendMessage(_roomId, msg);
                   
                   // 送信後、リストの下部にスクロール
@@ -222,6 +249,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     );
                   }
                 } catch (e) {
+                  // エラー時は送信したメッセージを削除
+                  setState(() {
+                    messages.removeWhere((m) => 
+                      m.text == message && 
+                      m.sent == true && 
+                      m.sticker == isSticker && 
+                      m.from == 'Me'
+                    );
+                  });
+                  
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('送信に失敗しました: $e')),

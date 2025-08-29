@@ -88,74 +88,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use the same phone-like framed layout on web as AppShell
-    if (kIsWeb) {
-      const aspect = 9 / 19.5;
-      const maxPhoneWidth = 384.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    const phoneWidthThreshold = 900.0;
+    final isWeb = kIsWeb;
+    final isNarrow = screenWidth < phoneWidthThreshold;
 
-      return LayoutBuilder(builder: (context, constraints) {
-        final maxH = constraints.maxHeight * 0.95;
-        var width = min(maxPhoneWidth, constraints.maxWidth);
-        var height = width / aspect;
-        if (height > maxH) {
-          height = maxH;
-          width = height * aspect;
-        }
-
-        return Container(
-          color: const Color(0xFFF3F4F6),
-          child: Center(
-            child: Container(
-              width: width,
-              height: height,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: Scaffold(
-                backgroundColor: Colors.transparent,
-                appBar: AppBar(
-                  backgroundColor: Colors.white,
-                  elevation: 0.5,
-                  leading: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.black87),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  title: const Text(
-                    'プロフィール設定',
-                    style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-                  ),
-                  actions: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('保存'),
-                      ),
-                    ),
-                  ],
-                ),
-                body: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
-              ),
-            ),
-          ),
-        );
-      });
-    }
-
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -190,6 +128,54 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(padding: const EdgeInsets.all(16), child: _buildBody()),
     );
+
+    if (isWeb && !isNarrow) {
+      // framed phone UI on wide web
+      const aspect = 9 / 19.5;
+      const maxPhoneWidth = 384.0;
+
+      return LayoutBuilder(builder: (context, constraints) {
+        final maxH = constraints.maxHeight * 0.95;
+        var width = min(maxPhoneWidth, constraints.maxWidth);
+        var height = width / aspect;
+        if (height > maxH) {
+          height = maxH;
+          width = height * aspect;
+        }
+
+        return Container(
+          color: const Color(0xFFF3F4F6),
+          child: Center(
+            child: Container(
+              width: width,
+              height: height,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [BoxShadow(color: const Color.fromRGBO(0, 0, 0, 0.12), blurRadius: 24, offset: const Offset(0, 8))],
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: scaffold,
+            ),
+          ),
+        );
+      });
+    }
+
+    // narrow web and native platforms use full-screen version with SizedBox height to avoid IntrinsicHeight
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6),
+      appBar: scaffold.appBar,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: MediaQuery.of(context).size.height - 48),
+            child: SizedBox(height: MediaQuery.of(context).size.height * 0.7, child: scaffold.body!),
+          ),
+        ),
+      ),
+    );
   }
 
   // Extract the original body into a helper to avoid duplication
@@ -202,8 +188,12 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           child: CircleAvatar(
             radius: 50,
             backgroundColor: Colors.grey[300],
-            backgroundImage: _profile['avatarUrl'] != null ? NetworkImage(_profile['avatarUrl']) : null,
-            child: _profile['avatarUrl'] == null ? Icon(Icons.person, size: 50, color: Colors.grey[600]) : null,
+            backgroundImage: (_profile['photoUrl'] ?? _profile['avatarUrl']) != null
+                ? NetworkImage((_profile['photoUrl'] ?? _profile['avatarUrl']) as String)
+                : null,
+            child: (_profile['photoUrl'] ?? _profile['avatarUrl']) == null
+                ? Icon(Icons.person, size: 50, color: Colors.grey[600])
+                : null,
           ),
         ),
         const SizedBox(height: 32),

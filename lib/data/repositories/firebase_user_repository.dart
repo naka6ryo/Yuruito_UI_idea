@@ -26,14 +26,14 @@ class FirebaseUserRepository implements UserRepository {
   @override
   Future<UserEntity?> fetchById(String id) async {
     try {
-      // ユーザー情報を取得
-      final userDoc = await _firestore.collection('users').doc(id).get();
+      // ユーザー情報を取得（キャッシュを無効化）
+      final userDoc = await _firestore.collection('users').doc(id).get(const GetOptions(source: Source.server));
       if (!userDoc.exists) return null;
 
       final userData = userDoc.data()!;
       
-      // 位置情報を取得
-      final locationDoc = await _firestore.collection('locations').doc(id).get();
+      // 位置情報を取得（キャッシュを無効化）
+      final locationDoc = await _firestore.collection('locations').doc(id).get(const GetOptions(source: Source.server));
       double? lat, lng;
       if (locationDoc.exists) {
         final locationData = locationDoc.data()!;
@@ -48,7 +48,7 @@ class FirebaseUserRepository implements UserRepository {
         id: id,
         name: userData['name'] ?? userData['email'] ?? 'Unknown',
         bio: userData['bio'] ?? '',
-        avatarUrl: userData['avatarUrl'],
+        avatarUrl: (userData['photoUrl'] ?? userData['avatarUrl']) as String?,
         relationship: _stringToRelationship(userData['relationship'] ?? 'none'),
         lat: lat,
         lng: lng,
@@ -65,8 +65,8 @@ class FirebaseUserRepository implements UserRepository {
     try {
       final currentUserId = _auth.currentUser?.uid;
       
-      // すべてのユーザーを取得
-      final usersSnapshot = await _firestore.collection('users').get();
+      // キャッシュを無効化して常に最新データを取得
+      final usersSnapshot = await _firestore.collection('users').get(const GetOptions(source: Source.server));
       final users = <UserEntity>[];
 
       for (final doc in usersSnapshot.docs) {
@@ -78,7 +78,7 @@ class FirebaseUserRepository implements UserRepository {
         // 位置情報を取得
         double? lat, lng;
         try {
-          final locationDoc = await _firestore.collection('locations').doc(doc.id).get();
+          final locationDoc = await _firestore.collection('locations').doc(doc.id).get(const GetOptions(source: Source.server));
           if (locationDoc.exists) {
             final locationData = locationDoc.data()!;
             final GeoPoint? geoPoint = locationData['location'] as GeoPoint?;
@@ -95,7 +95,7 @@ class FirebaseUserRepository implements UserRepository {
           id: doc.id,
           name: userData['name'] ?? userData['email'] ?? 'Unknown',
           bio: userData['bio'] ?? '',
-          avatarUrl: userData['avatarUrl'],
+          avatarUrl: (userData['photoUrl'] ?? userData['avatarUrl']) as String?,
           relationship: _stringToRelationship(userData['relationship'] ?? 'none'),
           lat: lat,
           lng: lng,
@@ -117,7 +117,8 @@ class FirebaseUserRepository implements UserRepository {
       await _firestore.collection('users').doc(user.id).set({
         'name': user.name,
         'bio': user.bio,
-        'avatarUrl': user.avatarUrl,
+        // 永続化は最新の設計に合わせて photoUrl を使用
+        'photoUrl': user.avatarUrl,
         'relationship': user.relationship.name,
         'email': _auth.currentUser?.email,
         'updatedAt': DateTime.now().toIso8601String(),
@@ -141,7 +142,8 @@ class FirebaseUserRepository implements UserRepository {
         await _firestore.collection('users').doc(currentUser.uid).set({
           'name': currentUser.displayName ?? currentUser.email?.split('@')[0] ?? 'ユーザー${currentUser.uid.substring(0, 8)}',
           'bio': '新しく参加しました！',
-          'avatarUrl': currentUser.photoURL ?? 'https://placehold.co/48x48/3B82F6/FFFFFF.png?text=${(currentUser.displayName ?? currentUser.email ?? 'U')[0]}',
+          // 初期化も photoUrl を標準キーに
+          'photoUrl': currentUser.photoURL ?? 'https://placehold.co/48x48/3B82F6/FFFFFF.png?text=${(currentUser.displayName ?? currentUser.email ?? 'U')[0]}',
           'relationship': 'friend', // デフォルトで友達として設定
           'email': currentUser.email,
           'isOnline': true,
@@ -217,7 +219,7 @@ class FirebaseUserRepository implements UserRepository {
           id: doc.id,
           name: userData['name'] ?? userData['email'] ?? 'Unknown',
           bio: userData['bio'] ?? '',
-          avatarUrl: userData['avatarUrl'],
+          avatarUrl: (userData['photoUrl'] ?? userData['avatarUrl']) as String?,
           relationship: _stringToRelationship(userData['relationship'] ?? 'none'),
           lat: lat,
           lng: lng,
