@@ -20,19 +20,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const mobileWidthThreshold = 600.0; // 横幅閾値（必要に応じて調整）
+    final mq = MediaQuery.of(context);
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: SingleChildScrollView(
-          // キーボード高さ分の余白を確保しつつ、コンテンツ自体は必要分だけの高さにする
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final isMobile = constraints.maxWidth <= mobileWidthThreshold;
+          const horizontalPadding = 24.0;
+
+          // 共通コンテンツ（高さは親に合わせて伸びる想定）
+          final content = Padding(
+            padding: const EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 24.0),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 上部ロゴ / タイトル（高さを固定せずに表示）
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -43,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                // 入力フォーム（スクロールされる）
+                // 入力フォーム（親の高さに応じて配置される）
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -75,8 +79,39 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ],
             ),
-          ),
-        ),
+          );
+
+          if (isMobile) {
+            // モバイル: 横幅に合わせた固定アスペクト比（例: 9:16）。
+            // アスペクト比で決まる高さが画面より大きければ SingleChildScrollView でスクロールして表示される。
+            const maxContentWidth = 420.0;
+            return Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: maxContentWidth),
+                  child: AspectRatio(
+                    aspectRatio: 9 / 16, // 必要に応じて比率を調整
+                    child: SizedBox.expand(
+                      child: content,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          } else {
+            // タブレット/デスクトップなど: 固定幅コンテナに収めて表示（高さは自動）。
+            return Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 700),
+                  child: content,
+                ),
+              ),
+            );
+          }
+        }),
       ),
     );
   }
