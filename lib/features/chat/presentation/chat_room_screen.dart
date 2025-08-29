@@ -69,7 +69,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         existing.text == m.text && 
         existing.from == m.from && 
         existing.sticker == m.sticker &&
-        existing.sent == m.sent
+        existing.sent == m.sent &&
+        (existing.timestamp?.difference(DateTime.now()).inSeconds.abs() ?? 0) < 5 // 5秒以内の重複を防ぐ
       );
       if (!exists) {
         setState(() => messages.add((
@@ -225,18 +226,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                 try {
                   final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
                   
-                  // 送信前にUIに追加（即座に表示）
-                  setState(() {
-                    messages.add((
-                      text: message,
-                      sent: true,
-                      sticker: isSticker,
-                      from: 'Me',
-                      timestamp: DateTime.now()
-                    ));
-                  });
-                  
-                  // 送信処理
+                  // 送信処理のみ実行（UIへの即座追加は削除）
                   await _chatService.sendMessage(_roomId, msg);
                   
                   // 送信後、リストの下部にスクロール
@@ -249,16 +239,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     );
                   }
                 } catch (e) {
-                  // エラー時は送信したメッセージを削除
-                  setState(() {
-                    messages.removeWhere((m) => 
-                      m.text == message && 
-                      m.sent == true && 
-                      m.sticker == isSticker && 
-                      m.from == 'Me'
-                    );
-                  });
-                  
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('送信に失敗しました: $e')),
