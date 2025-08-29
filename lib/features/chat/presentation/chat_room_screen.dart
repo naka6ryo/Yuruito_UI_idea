@@ -42,7 +42,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     super.dispose();
   }
 
-  String get _roomId => widget.conversationId ?? widget.name; // 常に conversationId を優先
+  // Prefer conversationId, then peerUid (uid), then fallback to name for compatibility
+  String get _resolvedRoomId => widget.conversationId ?? widget.peerUid ?? widget.name;
 
   Future<void> _load() async {
     // Clear existing messages first
@@ -50,7 +51,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       messages.clear();
     });
     
-    final loaded = await _chatService.loadMessages(_roomId);
+  final loaded = await _chatService.loadMessages(_resolvedRoomId);
     setState(() {
       messages.addAll(loaded.map((m) => (
         text: m.text,
@@ -62,7 +63,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     });
     
     // Listen for incoming messages
-    _chatService.onMessage(_roomId).listen((m) {
+  _chatService.onMessage(_resolvedRoomId).listen((m) {
       // Check if message already exists to prevent duplicates
       // Use more specific comparison to avoid false positives
       final exists = messages.any((existing) => 
@@ -99,7 +100,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
     if (widget.initialMessage != null && widget.initialMessage!.isNotEmpty) {
       final msg = (text: widget.initialMessage!.trim(), sent: true, sticker: widget.initialIsSticker, from: 'Me');
       try {
-        await _chatService.sendMessage(_roomId, msg);
+  await _chatService.sendMessage(_resolvedRoomId, msg);
         
         // 初期メッセージ送信後も下部にスクロール
         if (mounted) {
@@ -227,7 +228,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   final msg = (text: message, sent: true, sticker: isSticker, from: 'Me');
                   
                   // 送信処理のみ実行（UIへの即座追加は削除）
-                  await _chatService.sendMessage(_roomId, msg);
+                  await _chatService.sendMessage(_resolvedRoomId, msg);
                   
                   // 送信後、リストの下部にスクロール
                   if (_scrollController.hasClients) {
