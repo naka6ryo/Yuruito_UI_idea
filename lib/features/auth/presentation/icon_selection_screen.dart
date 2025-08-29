@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../../core/router/app_routes.dart';
 
 class IconSelectionScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 	// Minimal set: real app may load a list of asset/network icons.
 	List<String> icons = [];
 	String? selected;
+	bool _isUploading = false;
 
 	@override
 	void initState() {
@@ -50,16 +53,62 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 		}
 	}
 
-	Future<bool> _persistSelection() async {
+		Future<bool> _persistSelection() async {
 		try {
-				final uid = FirebaseAuth.instance.currentUser?.uid;
-				if (uid == null) return false;
-				final users = FirebaseFirestore.instance.collection('users');
-				await users.doc(uid).set({'icon': selected ?? ''}, SetOptions(merge: true));
-				return true;
-			} catch (_) {
-				return false;
+			final uid = FirebaseAuth.instance.currentUser?.uid;
+			if (uid == null) return false;
+			
+			String photoUrl = '';
+			
+			// 選択されたアイコンがアセットの場合、Firebase Storageにアップロード
+			if (selected != null && selected!.isNotEmpty && selected != 'emoji_fallback') {
+				photoUrl = await _uploadIconToStorage(selected!, uid);
 			}
+			
+			// Firestoreに保存
+			final users = FirebaseFirestore.instance.collection('users');
+			await users.doc(uid).set({
+				'icon': selected ?? '',
+				'photoUrl': photoUrl,
+				'avatarUrl': photoUrl, // 互換性のため
+			}, SetOptions(merge: true));
+			
+			// profilesコレクションにも保存
+			final profiles = FirebaseFirestore.instance.collection('profiles');
+			await profiles.doc(uid).set({
+				'photoUrl': photoUrl,
+			}, SetOptions(merge: true));
+			
+			return true;
+		} catch (e) {
+			debugPrint('アイコン保存エラー: $e');
+			return false;
+		}
+	}
+	
+	Future<String> _uploadIconToStorage(String assetPath, String uid) async {
+		try {
+			// アセットから画像データを読み込み
+			final ByteData data = await rootBundle.load(assetPath);
+			final Uint8List bytes = data.buffer.asUint8List();
+			
+			// Firebase Storageの参照を作成
+			final storageRef = FirebaseStorage.instance.ref();
+			final iconRef = storageRef.child('profile_photos/$uid/icon.png');
+			
+			// 画像をアップロード
+			final uploadTask = iconRef.putData(bytes);
+			final snapshot = await uploadTask;
+			
+			// ダウンロードURLを取得
+			final downloadUrl = await snapshot.ref.getDownloadURL();
+			
+			debugPrint('✅ アイコンをStorageにアップロード: $downloadUrl');
+			return downloadUrl;
+		} catch (e) {
+			debugPrint('❌ アイコンアップロードエラー: $e');
+			return '';
+		}
 	}
 
 	@override
@@ -126,18 +175,41 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 						SizedBox(
 							width: double.infinity,
 							child: FilledButton(
-								onPressed: selected == null
+								onPressed: (selected == null || _isUploading)
 										? null
 										: () async {
+												setState(() {
+													_isUploading = true;
+												});
+												
 												final success = await _persistSelection();
+												
 												if (!mounted) return;
+												
+												setState(() {
+													_isUploading = false;
+												});
+												
 												if (success) {
 													Navigator.pushNamed(context, AppRoutes.questionnaire);
 												} else {
 													ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('アイコンの保存に失敗しました。')));
 												}
 											},
-								child: const Text('次へ'),
+								child: _isUploading 
+									? const Row(
+										mainAxisAlignment: MainAxisAlignment.center,
+										children: [
+											SizedBox(
+												width: 16,
+												height: 16,
+												child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+											),
+											SizedBox(width: 8),
+											Text('アップロード中...'),
+										],
+									)
+									: const Text('次へ'),
 							),
 						),
 					],
