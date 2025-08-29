@@ -265,7 +265,10 @@ class FirebaseChatService implements ChatService {
         ? parts[0]
         : (currentUser?.uid ?? '');
     final peer = parts.length > 1 ? parts[1] : roomId;
-    _ensureConversation(currentUid: me, peerUid: peer).then((convRef) {
+    
+    // 会話IDを取得または作成してからストリームを開始
+    findOrCreateConversation(me, peer).then((conversationId) {
+      final convRef = _conversationsCol().doc(conversationId);
       _sub = convRef
           .collection('messages')
           .orderBy('createdAt', descending: false)
@@ -283,6 +286,9 @@ class FirebaseChatService implements ChatService {
           }
         }
       });
+    }).catchError((error) {
+      debugPrint('❌ 会話作成エラー: $error');
+      controller.close();
     });
 
     controller.onCancel = () {
@@ -349,6 +355,7 @@ class FirebaseChatService implements ChatService {
               break;
             }
           }
+
         }
       }
       
@@ -356,16 +363,32 @@ class FirebaseChatService implements ChatService {
       
       if (peerId.isNotEmpty && peerId != userId) {
         // 実際にメッセージがあるかチェック（スタンプも含む）
-        final messagesQuery = await doc.reference.collection('messages').limit(1).get();
+        final messagesQuery = await doc.reference.collection('messages').get();
         
         debugPrint('💬 会話 ${doc.id}: メッセージ数=${messagesQuery.docs.length}');
+        
+        // 相手が送ってきたメッセージがあるかチェック
+        bool hasMessageFromPeer = false;
+        for (final messageDoc in messagesQuery.docs) {
+          final messageData = messageDoc.data();
+          final messageFrom = messageData['from'] as String? ?? '';
+          if (messageFrom == peerId) {
+            hasMessageFromPeer = true;
+            break;
+          }
+        }
         
         // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
         final hasInteracted = data['hasInteracted'] as bool? ?? false;
         final lastMessage = data['lastMessage'] as String? ?? '';
+        final lastSender = data['lastSender'] as String? ?? '';
         
-        // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
-        if (messagesQuery.docs.isNotEmpty || hasInteracted || lastMessage.isNotEmpty) {
+        // 相手が送ってきたメッセージが1個でもあれば表示
+        // または自分が送信したメッセージがある場合も表示
+        final hasAnyMessage = messagesQuery.docs.isNotEmpty;
+        final hasInteraction = hasInteracted || lastMessage.isNotEmpty;
+        
+        if (hasMessageFromPeer || hasAnyMessage || hasInteraction) {
           // 直接ユーザー情報を取得（peerInfoは信頼性が低いため）
           String userName = '';
           try {
@@ -392,7 +415,7 @@ class FirebaseChatService implements ChatService {
           );
           
           result.add(conversation);
-          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
+          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage" - hasMessageFromPeer: $hasMessageFromPeer');
         } else {
           debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
         }
