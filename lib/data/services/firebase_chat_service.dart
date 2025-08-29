@@ -34,6 +34,41 @@ class FirebaseChatService implements ChatService {
     return ref;
   }
 
+  /// Resolve a room identifier which may be:
+  /// - a conversationId (doc id like "uidA_uidB")
+  /// - a compound id in the form "meUid::peerUid"
+  /// - a plain peer uid
+  /// This returns the canonical conversation DocumentReference (creating one if needed).
+  Future<DocumentReference<Map<String, dynamic>>> _getConversationRefFromRoomId(String roomId) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUid = currentUser?.uid ?? '';
+
+    // If explicit me::peer format is used, create/ensure using those values
+    final parts = roomId.split('::');
+    if (parts.length == 2) {
+      return _ensureConversation(currentUid: parts[0], peerUid: parts[1]);
+    }
+
+    // If a conversation doc with this id exists and the current user is a member, use it
+    try {
+      final candidateRef = _conversationsCol().doc(roomId);
+      final snap = await candidateRef.get();
+      if (snap.exists) {
+        final data = snap.data();
+        final members = List<String>.from(data?['members'] ?? const <String>[]);
+        if (members.contains(currentUid)) {
+          return candidateRef;
+        }
+      }
+    } catch (e) {
+      // ignore and fallback to treating roomId as peer uid
+      debugPrint('conversation doc check failed for $roomId: $e');
+    }
+
+    // Fallback: treat roomId as a peer UID
+    return _ensureConversation(currentUid: currentUid, peerUid: roomId);
+  }
+
   /// ステップ1: 会話の開始（または既存の会話の特定）
   /// 指定の2ユーザーの会話ID（ドキュメントID）を返します。
   /// 既存が無ければ作成します。members は必ず UID をソートして保存します。
@@ -136,16 +171,8 @@ class FirebaseChatService implements ChatService {
 
   @override
   Future<List<({String text, bool sent, bool sticker, String from})>> loadMessages(String roomId) async {
-    // roomId は `peerUid` または `{meUid}::{peerUid}` を許容
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return [];
-    final parts = roomId.split('::');
-    final me = parts.length == 2 ? parts[0] : currentUser.uid;
-    final peer = parts.length == 2 ? parts[1] : roomId;
-
-    // 会話IDを取得または作成
-    final conversationId = await findOrCreateConversation(me, peer);
-    final convRef = _conversationsCol().doc(conversationId);
+    // Resolve canonical conversation doc for the provided roomId (supports conversationId, me::peer, or peerUid)
+    final convRef = await _getConversationRefFromRoomId(roomId);
     final q = await convRef
         .collection('messages')
         .orderBy('createdAt', descending: false)
@@ -156,30 +183,24 @@ class FirebaseChatService implements ChatService {
       final from = data['from'] as String? ?? '';
       final text = data['text'] as String? ?? '';
       final sticker = data['sticker'] as bool? ?? false;
-      final sent = from == me;
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final sent = currentUser != null && from == currentUser.uid;
       return (text: text, sent: sent, sticker: sticker, from: from);
     }).toList();
   }
 
   @override
   Future<void> sendMessage(String roomId, ({String text, bool sent, bool sticker, String from}) message) async {
-    // roomId = `{peerUid}` もしくは `{meUid}::{peerUid}`
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-    final parts = roomId.split('::');
-    final me = parts.length > 1 ? parts[0] : currentUser.uid;
-    final peer = parts.length > 1 ? parts[1] : roomId;
-    
-    debugPrint('🔍 メッセージ送信開始: me=$me, peer=$peer, text=${message.text}, sticker=${message.sticker}');
-    
-    // 会話IDを取得または作成
-    final conversationId = await findOrCreateConversation(me, peer);
-    final convRef = _conversationsCol().doc(conversationId);
+  // Resolve canonical conversation doc for the provided roomId (supports conversationId, me::peer, or peerUid)
+  final convRef = await _getConversationRefFromRoomId(roomId);
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) return;
+  debugPrint('🔍 メッセージ送信開始: roomId=$roomId, text=${message.text}, sticker=${message.sticker}');
     final batch = _db.batch();
 
     final msgRef = convRef.collection('messages').doc();
     batch.set(msgRef, {
-      'from': me,
+  'from': message.from.isNotEmpty ? message.from : currentUser.uid,
       'text': message.text,
       'sticker': message.sticker,
       'createdAt': FieldValue.serverTimestamp(),
@@ -191,7 +212,7 @@ class FirebaseChatService implements ChatService {
     batch.update(convRef, {
       'lastMessage': displayMessage,
       'updatedAt': FieldValue.serverTimestamp(),
-      'lastSender': me,
+      'lastSender': message.from.isNotEmpty ? message.from : currentUser.uid,
       'hasInteracted': true,
     });
     
@@ -260,15 +281,7 @@ class FirebaseChatService implements ChatService {
     _controllers[roomId] = controller;
 
     final currentUser = FirebaseAuth.instance.currentUser;
-    final parts = roomId.split('::');
-    final me = parts.length > 1
-        ? parts[0]
-        : (currentUser?.uid ?? '');
-    final peer = parts.length > 1 ? parts[1] : roomId;
-    
-    // 会話IDを取得または作成してからストリームを開始
-    findOrCreateConversation(me, peer).then((conversationId) {
-      final convRef = _conversationsCol().doc(conversationId);
+    _getConversationRefFromRoomId(roomId).then((convRef) {
       _sub = convRef
           .collection('messages')
           .orderBy('createdAt', descending: false)
@@ -281,7 +294,7 @@ class FirebaseChatService implements ChatService {
             final from = data['from'] as String? ?? '';
             final text = data['text'] as String? ?? '';
             final sticker = data['sticker'] as bool? ?? false;
-            final sent = from == me;
+            final sent = currentUser != null && from == currentUser.uid;
             controller.add((text: text, sent: sent, sticker: sticker, from: from));
           }
         }
