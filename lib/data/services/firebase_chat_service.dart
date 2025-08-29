@@ -248,7 +248,10 @@ class FirebaseChatService implements ChatService {
         ? parts[0]
         : (currentUser?.uid ?? '');
     final peer = parts.length > 1 ? parts[1] : roomId;
-    _ensureConversation(currentUid: me, peerUid: peer).then((convRef) {
+    
+    // 会話IDを取得または作成してからストリームを開始
+    findOrCreateConversation(me, peer).then((conversationId) {
+      final convRef = _conversationsCol().doc(conversationId);
       _sub = convRef
           .collection('messages')
           .orderBy('createdAt', descending: false)
@@ -266,6 +269,9 @@ class FirebaseChatService implements ChatService {
           }
         }
       });
+    }).catchError((error) {
+      debugPrint('❌ 会話作成エラー: $error');
+      controller.close();
     });
 
     controller.onCancel = () {
@@ -323,12 +329,29 @@ class FirebaseChatService implements ChatService {
         // 2人の会話の場合
         peerId = members.firstWhere((id) => id != userId, orElse: () => '');
       } else {
-        // 会話IDからpeerIdを抽出（形式: user1_user2）
-        final parts = doc.id.split('_');
-        if (parts.length >= 2) {
-          final user1 = parts[0];
-          final user2 = parts[1];
-          peerId = user1 == userId ? user2 : user1;
+        // 複雑な会話IDの場合、members配列から正しいpeerIdを抽出
+        for (final memberId in members) {
+          if (memberId != userId) {
+            // Firebase UIDの形式チェック（28文字の英数字）
+            if (memberId.length == 28 && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(memberId)) {
+              peerId = memberId;
+              break;
+            }
+          }
+        }
+        
+        // peerIdが取得できない場合は、会話IDから抽出を試行
+        if (peerId.isEmpty) {
+          final parts = doc.id.split('_');
+          if (parts.length >= 2) {
+            final user1 = parts[0];
+            final user2 = parts[1];
+            if (user1 == userId && user2.length == 28) {
+              peerId = user2;
+            } else if (user2 == userId && user1.length == 28) {
+              peerId = user1;
+            }
+          }
         }
       }
       
