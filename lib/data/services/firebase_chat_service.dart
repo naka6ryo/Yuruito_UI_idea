@@ -155,17 +155,7 @@ class FirebaseChatService implements ChatService {
     final me = parts.length > 1 ? parts[0] : currentUser.uid;
     final peer = parts.length > 1 ? parts[1] : roomId;
     
-    // 親密度チェック（最低レベル1を保証）
-    final intimacyLevel = await _intimacyCalculator.getIntimacyLevel(me, peer);
-    final finalIntimacyLevel = (intimacyLevel ?? 0) > 0 ? (intimacyLevel ?? 1) : 1; // 最低レベル1を保証
-    final canSendMessage = _canSendMessage(finalIntimacyLevel, message);
-    
-    // デバッグログ削除
-    
-    // 親密度チェックを削除して、常に送信可能にする
-    // if (!canSendMessage) {
-    //   return;
-    // }
+    debugPrint('🔍 メッセージ送信開始: me=$me, peer=$peer, text=${message.text}, sticker=${message.sticker}');
     
     final convRef = await _ensureConversation(currentUid: me, peerUid: peer);
     final batch = _db.batch();
@@ -176,7 +166,6 @@ class FirebaseChatService implements ChatService {
       'text': message.text,
       'sticker': message.sticker,
       'createdAt': FieldValue.serverTimestamp(),
-      'intimacyLevel': intimacyLevel ?? 0, // 送信時の親密度レベル
     });
     
     // スタンプの場合は適切なメッセージテキストを設定
@@ -187,11 +176,10 @@ class FirebaseChatService implements ChatService {
       'updatedAt': FieldValue.serverTimestamp(),
       'lastSender': me,
       'hasInteracted': true,
-      'intimacyLevel': intimacyLevel ?? 0, // 親密度レベルを更新
     });
     
     await batch.commit();
-    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: ${convRef.id} - hasInteracted: true');
+    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: ${convRef.id}');
   }
 
   /// 親密度レベルに基づいてメッセージ送信可能かチェック
@@ -328,11 +316,25 @@ class FirebaseChatService implements ChatService {
     for (final doc in sortedConversations) {
       final data = doc.data();
       final members = List<String>.from(data['members'] ?? []);
-      final peerId = members.firstWhere((id) => id != userId, orElse: () => '');
+      
+      // 会話IDからpeerIdを正しく抽出
+      String peerId = '';
+      if (members.length == 2) {
+        // 2人の会話の場合
+        peerId = members.firstWhere((id) => id != userId, orElse: () => '');
+      } else {
+        // 会話IDからpeerIdを抽出（形式: user1_user2）
+        final parts = doc.id.split('_');
+        if (parts.length >= 2) {
+          final user1 = parts[0];
+          final user2 = parts[1];
+          peerId = user1 == userId ? user2 : user1;
+        }
+      }
       
       debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId');
       
-      if (peerId.isNotEmpty) {
+      if (peerId.isNotEmpty && peerId != userId) {
         // 実際にメッセージがあるかチェック（スタンプも含む）
         final messagesQuery = await doc.reference.collection('messages').limit(1).get();
         
@@ -342,47 +344,35 @@ class FirebaseChatService implements ChatService {
         final hasInteracted = data['hasInteracted'] as bool? ?? false;
         final lastMessage = data['lastMessage'] as String? ?? '';
         
-        // スタンプ送信後は確実に表示
+        // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
         if (messagesQuery.docs.isNotEmpty || hasInteracted || lastMessage.isNotEmpty) {
-          // 親密度レベルを取得
-          final intimacyLevel = await _intimacyCalculator.getIntimacyLevel(userId, peerId);
-          
-          // 親密度レベル0以上の場合のみ表示（スタンプ送信後は確実に表示）
-          if ((intimacyLevel ?? 0) >= 0) {
-            // peerInfoからユーザー情報を取得
-            final peerInfo = data['peerInfo'] as Map<String, dynamic>?;
-            String userName = '';
-            
-            if (peerInfo != null && peerInfo.containsKey(peerId)) {
-              final userInfo = peerInfo[peerId] as Map<String, dynamic>?;
-              userName = userInfo?['name'] as String? ?? '';
-            }
-            
-            // peerInfoから取得できない場合は、直接ユーザー情報を取得
-            if (userName.isEmpty) {
-              final userDoc = await _db.collection('users').doc(peerId).get();
+          // 直接ユーザー情報を取得（peerInfoは信頼性が低いため）
+          String userName = '';
+          try {
+            final userDoc = await _db.collection('users').doc(peerId).get();
+            if (userDoc.exists) {
               userName = userDoc.data()?['name'] as String? ?? '';
             }
-            
-            // ユーザー名が取得できない場合はスキップ
-            if (userName.isEmpty) {
-              debugPrint('❌ ユーザー名が取得できません: peerId=$peerId');
-              continue;
-            }
-            
-            final conversation = (
-              conversationId: doc.id,
-              peerName: userName,
-              lastMessage: (data['lastMessage'] as String?) ?? '',
-              updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-              unreadCount: 0, // 一時的に0に設定
-            );
-            
-            result.add(conversation);
-            debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - 親密度レベル: ${intimacyLevel ?? 0} - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
-          } else {
-            debugPrint('❌ 親密度不足: 会話 ${doc.id} をスキップ (レベル: ${intimacyLevel ?? 0})');
+          } catch (e) {
+            debugPrint('❌ ユーザー情報取得エラー: peerId=$peerId, error=$e');
           }
+          
+          // ユーザー名が取得できない場合はスキップ
+          if (userName.isEmpty) {
+            debugPrint('❌ ユーザー名が取得できません: peerId=$peerId');
+            continue;
+          }
+          
+          final conversation = (
+            conversationId: doc.id,
+            peerName: userName,
+            lastMessage: (data['lastMessage'] as String?) ?? '',
+            updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+            unreadCount: 0, // 一時的に0に設定
+          );
+          
+          result.add(conversation);
+          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
         } else {
           debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
         }
