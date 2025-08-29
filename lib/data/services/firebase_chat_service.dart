@@ -48,12 +48,24 @@ class FirebaseChatService implements ChatService {
 
     // 既存会話の検索（members 完全一致）
     final existing = await _conversationsCol()
-        .where('members', isEqualTo: sortedMembers)
-        .limit(1)
+        .where('members', arrayContains: myId)
         .get();
-    if (existing.docs.isNotEmpty) {
-      final existingDoc = existing.docs.first;
-      final existingData = existingDoc.data();
+    
+    // 手動でmembersが完全一致するものを探す
+    DocumentSnapshot? existingDoc;
+    for (final doc in existing.docs) {
+      final data = doc.data();
+      final members = List<String>.from(data['members'] ?? []);
+      if (members.length == 2 && 
+          members.contains(myId) && 
+          members.contains(otherId)) {
+        existingDoc = doc;
+        debugPrint('✅ 既存の会話を発見: ${doc.id}');
+        break;
+      }
+    }
+    if (existingDoc != null) {
+      final existingData = existingDoc.data()! as Map<String, dynamic>;
       
       // 既存の会話の親密度レベルを更新
       final currentIntimacyLevel = await _intimacyCalculator.getIntimacyLevel(myId, otherId);
@@ -72,6 +84,7 @@ class FirebaseChatService implements ChatService {
 
     // なければ決定的なIDで作成（重複防止のため pair cid を採用）
     final cid = _pairConversationId(myId, otherId);
+    debugPrint('🆕 新しい会話IDを生成: $cid (myId: $myId, otherId: $otherId)');
     final ref = _conversationsCol().doc(cid);
     
     // 親密度レベルを取得（新規作成時は最低レベル1を保証）
@@ -130,7 +143,9 @@ class FirebaseChatService implements ChatService {
     final me = parts.length == 2 ? parts[0] : currentUser.uid;
     final peer = parts.length == 2 ? parts[1] : roomId;
 
-    final convRef = await _ensureConversation(currentUid: me, peerUid: peer);
+    // 会話IDを取得または作成
+    final conversationId = await findOrCreateConversation(me, peer);
+    final convRef = _conversationsCol().doc(conversationId);
     final q = await convRef
         .collection('messages')
         .orderBy('createdAt', descending: false)
@@ -157,7 +172,9 @@ class FirebaseChatService implements ChatService {
     
     debugPrint('🔍 メッセージ送信開始: me=$me, peer=$peer, text=${message.text}, sticker=${message.sticker}');
     
-    final convRef = await _ensureConversation(currentUid: me, peerUid: peer);
+    // 会話IDを取得または作成
+    final conversationId = await findOrCreateConversation(me, peer);
+    final convRef = _conversationsCol().doc(conversationId);
     final batch = _db.batch();
 
     final msgRef = convRef.collection('messages').doc();
@@ -179,7 +196,7 @@ class FirebaseChatService implements ChatService {
     });
     
     await batch.commit();
-    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: ${convRef.id}');
+    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: $conversationId');
   }
 
   /// 親密度レベルに基づいてメッセージ送信可能かチェック
@@ -323,16 +340,19 @@ class FirebaseChatService implements ChatService {
         // 2人の会話の場合
         peerId = members.firstWhere((id) => id != userId, orElse: () => '');
       } else {
-        // 会話IDからpeerIdを抽出（形式: user1_user2）
-        final parts = doc.id.split('_');
-        if (parts.length >= 2) {
-          final user1 = parts[0];
-          final user2 = parts[1];
-          peerId = user1 == userId ? user2 : user1;
+        // 複雑な会話IDの場合、members配列から正しいpeerIdを抽出
+        for (final memberId in members) {
+          if (memberId != userId) {
+            // Firebase UIDの形式チェック（28文字の英数字）
+            if (memberId.length == 28 && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(memberId)) {
+              peerId = memberId;
+              break;
+            }
+          }
         }
       }
       
-      debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId');
+      debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId, userId=$userId');
       
       if (peerId.isNotEmpty && peerId != userId) {
         // 実際にメッセージがあるかチェック（スタンプも含む）
