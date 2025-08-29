@@ -103,7 +103,7 @@ class _IconSelectionScreenState extends State<IconSelectionScreen> {
 			// ダウンロードURLを取得
 			final downloadUrl = await snapshot.ref.getDownloadURL();
 			
-			debugPrint('✅ アイコンをStorageにアップロード: $downloadUrl');
+			debugPrint('✅アイコンをStorageにアップロード: $downloadUrl');
 			return downloadUrl;
 		} catch (e) {
 			debugPrint('❌ アイコンアップロードエラー:$e');
