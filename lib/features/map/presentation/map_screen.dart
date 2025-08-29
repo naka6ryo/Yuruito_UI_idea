@@ -779,13 +779,13 @@ class _MapScreenState extends State<MapScreen>
   Color _colorForIntimacyLevel(int level) {
     switch (level) {
       case 4:
-        return const Color(0xFF4F46E5);
+        return const Color(0xFF9B5DE5);
       case 3:
-        return const Color(0xFF22C55E);
+        return const Color(0xFFF15BB5);
       case 2:
-        return const Color(0xFFF97316);
+        return const Color(0xFFFEE440);
       case 1:
-        return const Color(0xFFF9A8D4);
+        return const Color(0xFF00F5D4);
       case 0:
       default:
         return const Color(0xFFFFFFFF);
@@ -810,11 +810,11 @@ class _MapScreenState extends State<MapScreen>
   Color _polylineColorForIntimacyLevel(int level) {
     switch (level) {
       case 4:
-        return const Color(0xFF4F46E5);
+        return const Color(0xFF9B5DE5);
       case 3:
-        return const Color(0xFF22C55E);
+        return const Color(0xFFF15BB5);
       case 2:
-        return const Color(0xFFF97316);
+        return const Color(0xFFFEE440);
       default:
         return const Color(0xFF9CA3AF);
     }
@@ -854,7 +854,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
   }
 
   String? _conversationId;
-  
+
   String get _roomId => _conversationId ?? widget.user.id;
   Future<void> _loadMessages() async {
     try {
@@ -862,7 +862,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
       if (_conversationId == null) {
         await _initializeConversation();
       }
-      
+
       final loaded = await _chatService.loadMessages(_roomId);
       setState(() {
         _messages.clear();
@@ -904,7 +904,10 @@ class _MapProfileModalState extends State<MapProfileModal> {
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        _conversationId = await _chatService.findOrCreateConversation(currentUser.uid, widget.user.id);
+        _conversationId = await _chatService.findOrCreateConversation(
+          currentUser.uid,
+          widget.user.id,
+        );
         debugPrint('✅ 会話IDを初期化: $_conversationId');
       }
     } catch (e) {
@@ -918,7 +921,7 @@ class _MapProfileModalState extends State<MapProfileModal> {
       if (_conversationId == null) {
         await _initializeConversation();
       }
-      
+
       await _chatService.sendMessage(_roomId, (
         text: message,
         sent: true,
@@ -1130,11 +1133,15 @@ class _MapProfileModalState extends State<MapProfileModal> {
                       await _sendMessage(message, isSticker);
                       if (mounted) {
                         Navigator.pop(context);
-                        
+
                         // 正しい会話IDを取得
                         final currentUser = FirebaseAuth.instance.currentUser;
                         if (currentUser != null) {
-                          final conversationId = await FirebaseChatService().findOrCreateConversation(currentUser.uid, widget.user.id);
+                          final conversationId = await FirebaseChatService()
+                              .findOrCreateConversation(
+                                currentUser.uid,
+                                widget.user.id,
+                              );
                           Navigator.push(
                             context,
                             MaterialPageRoute(
