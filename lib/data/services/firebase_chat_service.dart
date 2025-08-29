@@ -83,12 +83,24 @@ class FirebaseChatService implements ChatService {
 
     // 既存会話の検索（members 完全一致）
     final existing = await _conversationsCol()
-        .where('members', isEqualTo: sortedMembers)
-        .limit(1)
+        .where('members', arrayContains: myId)
         .get();
-    if (existing.docs.isNotEmpty) {
-      final existingDoc = existing.docs.first;
-      final existingData = existingDoc.data();
+    
+    // 手動でmembersが完全一致するものを探す
+    DocumentSnapshot? existingDoc;
+    for (final doc in existing.docs) {
+      final data = doc.data();
+      final members = List<String>.from(data['members'] ?? []);
+      if (members.length == 2 && 
+          members.contains(myId) && 
+          members.contains(otherId)) {
+        existingDoc = doc;
+        debugPrint('✅ 既存の会話を発見: ${doc.id}');
+        break;
+      }
+    }
+    if (existingDoc != null) {
+      final existingData = existingDoc.data()! as Map<String, dynamic>;
       
       // 既存の会話の親密度レベルを更新
       final currentIntimacyLevel = await _intimacyCalculator.getIntimacyLevel(myId, otherId);
@@ -107,6 +119,7 @@ class FirebaseChatService implements ChatService {
 
     // なければ決定的なIDで作成（重複防止のため pair cid を採用）
     final cid = _pairConversationId(myId, otherId);
+    debugPrint('🆕 新しい会話IDを生成: $cid (myId: $myId, otherId: $otherId)');
     final ref = _conversationsCol().doc(cid);
     
     // 親密度レベルを取得（新規作成時は最低レベル1を保証）
@@ -204,7 +217,7 @@ class FirebaseChatService implements ChatService {
     });
     
     await batch.commit();
-    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: ${convRef.id}');
+    debugPrint('✅ メッセージ送信完了: ${message.sticker ? "スタンプ" : "テキスト"} - 会話ID: $conversationId');
   }
 
   /// 親密度レベルに基づいてメッセージ送信可能かチェック
@@ -286,6 +299,9 @@ class FirebaseChatService implements ChatService {
           }
         }
       });
+    }).catchError((error) {
+      debugPrint('❌ 会話作成エラー: $error');
+      controller.close();
     });
 
     controller.onCancel = () {
@@ -343,29 +359,49 @@ class FirebaseChatService implements ChatService {
         // 2人の会話の場合
         peerId = members.firstWhere((id) => id != userId, orElse: () => '');
       } else {
-        // 会話IDからpeerIdを抽出（形式: user1_user2）
-        final parts = doc.id.split('_');
-        if (parts.length >= 2) {
-          final user1 = parts[0];
-          final user2 = parts[1];
-          peerId = user1 == userId ? user2 : user1;
+        // 複雑な会話IDの場合、members配列から正しいpeerIdを抽出
+        for (final memberId in members) {
+          if (memberId != userId) {
+            // Firebase UIDの形式チェック（28文字の英数字）
+            if (memberId.length == 28 && RegExp(r'^[a-zA-Z0-9]+$').hasMatch(memberId)) {
+              peerId = memberId;
+              break;
+            }
+          }
+
         }
       }
       
-      debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId');
+      debugPrint('👥 会話 ${doc.id}: members=$members, peerId=$peerId, userId=$userId');
       
       if (peerId.isNotEmpty && peerId != userId) {
         // 実際にメッセージがあるかチェック（スタンプも含む）
-        final messagesQuery = await doc.reference.collection('messages').limit(1).get();
+        final messagesQuery = await doc.reference.collection('messages').get();
         
         debugPrint('💬 会話 ${doc.id}: メッセージ数=${messagesQuery.docs.length}');
+        
+        // 相手が送ってきたメッセージがあるかチェック
+        bool hasMessageFromPeer = false;
+        for (final messageDoc in messagesQuery.docs) {
+          final messageData = messageDoc.data();
+          final messageFrom = messageData['from'] as String? ?? '';
+          if (messageFrom == peerId) {
+            hasMessageFromPeer = true;
+            break;
+          }
+        }
         
         // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
         final hasInteracted = data['hasInteracted'] as bool? ?? false;
         final lastMessage = data['lastMessage'] as String? ?? '';
+        final lastSender = data['lastSender'] as String? ?? '';
         
-        // メッセージがある場合、またはhasInteractedがtrueの場合のみ追加（スタンプも含む）
-        if (messagesQuery.docs.isNotEmpty || hasInteracted || lastMessage.isNotEmpty) {
+        // 相手が送ってきたメッセージが1個でもあれば表示
+        // または自分が送信したメッセージがある場合も表示
+        final hasAnyMessage = messagesQuery.docs.isNotEmpty;
+        final hasInteraction = hasInteracted || lastMessage.isNotEmpty;
+        
+        if (hasMessageFromPeer || hasAnyMessage || hasInteraction) {
           // 直接ユーザー情報を取得（peerInfoは信頼性が低いため）
           String userName = '';
           try {
@@ -392,7 +428,7 @@ class FirebaseChatService implements ChatService {
           );
           
           result.add(conversation);
-          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage"');
+          debugPrint('✅ 会話追加: $userName (${conversation.conversationId}) - hasInteracted: $hasInteracted - lastMessage: "$lastMessage" - hasMessageFromPeer: $hasMessageFromPeer');
         } else {
           debugPrint('❌ メッセージなし: 会話 ${doc.id} をスキップ');
         }
